@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐱 月薪喵</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0a; height:100vh; display:flex; flex-direction:column; }
+#iframe { flex:1; width:100%; border:none; }
+.controls {
+  position:fixed; bottom:20px; right:20px; z-index:10;
+  display:flex; gap:10px;
+}
+.controls button {
+  padding:10px 20px; border:none; border-radius:25px;
+  background:rgba(255,255,255,0.15); color:#fff;
+  cursor:pointer; font-size:14px;
+  backdrop-filter:blur(10px);
+}
+.controls button:hover { background:rgba(255,107,157,0.4); }
+</style>
+</head>
+<body>
+<iframe id="iframe" src="/ttyd/"></iframe>
+<audio id="bgm" loop autoplay>
+  <source src="music.mp3" type="audio/mpeg">
+</audio>
+<div class="controls">
+  <button onclick="document.getElementById('bgm').play()">▶️ 播放音乐</button>
+  <button onclick="document.getElementById('bgm').pause()">⏸️ 暂停</button>
+</div>
+<script>
+// 自动播放（需用户交互）
+document.body.addEventListener('click', () => {
+  document.getElementById('bgm').play().catch(()=>{});
+}, { once: true });
+</script>
+</body>
+</html>

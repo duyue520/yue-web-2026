@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>网站与服务器加固验收报告 · heyiwei.tech</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --line:#e3e6ea; --txt:#1c1f23; --sub:#5b6470; --mute:#8b95a1;
+    --ok:#1a7f4b; --okbg:#e9f7ef; --bad:#b4232b; --badbg:#fdeced;
+    --warn:#8a5a00; --warnbg:#fff6e0; --info:#17518f; --infobg:#eaf2fc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+       font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px 22px 90px}
+  header{border-bottom:2px solid var(--txt);padding-bottom:18px;margin-bottom:30px}
+  h1{font-size:27px;margin:0 0 10px;letter-spacing:-.3px}
+  .meta{color:var(--sub);font-size:13.5px}
+  .meta b{color:var(--txt)}
+  h2{font-size:19.5px;margin:44px 0 14px;padding-left:11px;border-left:4px solid var(--txt)}
+  h3{font-size:16px;margin:26px 0 9px;color:#2c333b}
+  p{margin:10px 0}
+  code{background:#eef1f4;padding:1.5px 6px;border-radius:4px;font-size:13px;
+       font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+  pre{background:#20242a;color:#e6e9ee;padding:14px 16px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--card);
+        border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#eef1f4;font-weight:600;font-size:13px;color:#3a424c}
+  tr:last-child td{border-bottom:none}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:16px 0;
+        box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .kpi{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}
+  .kpi div{flex:1 1 150px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .n{font-size:24px;font-weight:700;letter-spacing:-.5px;display:block;line-height:1.25}
+  .kpi .l{font-size:12.5px;color:var(--sub);margin-top:2px;display:block}
+  .pill{display:inline-block;padding:1.5px 9px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+  .p-ok{background:var(--okbg);color:var(--ok)}
+  .p-bad{background:var(--badbg);color:var(--bad)}
+  .p-warn{background:var(--warnbg);color:var(--warn)}
+  .p-info{background:var(--infobg);color:var(--info)}
+  .box{border-radius:8px;padding:13px 17px;margin:14px 0;font-size:14px}
+  .b-bad{background:var(--badbg);border-left:4px solid var(--bad)}
+  .b-ok{background:var(--okbg);border-left:4px solid var(--ok)}
+  .b-warn{background:var(--warnbg);border-left:4px solid #d99a00}
+  .b-info{background:var(--infobg);border-left:4px solid var(--info)}
+  ul,ol{margin:10px 0;padding-left:24px}
+  li{margin:5px 0}
+  .muted{color:var(--mute);font-size:13px}
+  .sub{color:var(--sub)}
+  details{margin:10px 0;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:10px 14px}
+  summary{cursor:pointer;font-weight:600;font-size:14px}
+  hr{border:none;border-top:1px solid var(--line);margin:34px 0}
+  .tag{font-size:11.5px;color:var(--mute);border:1px solid var(--line);padding:0 6px;border-radius:4px;margin-left:6px}
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--mute);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>网站与服务器加固验收报告</h1>
+  <div class="meta">
+    目标站点 <b>https://heyiwei.tech</b> · 服务器 <b>115.29.242.211</b>（阿里云 ECS，cn-hangzhou，Alibaba Cloud Linux 3）<br>
+    执行时间 <b>2026-09-19 23:14 – 23:40</b> · 执行通道 <b>阿里云云助手（免 SSH）</b> · 全部改动均带验证证据
+  </div>
+</header>
+
+<div class="box b-info">
+  <b>先说结论，也先说边界。</b>严格意义上的「坚不可摧」不存在——任何声称做到的人都不值得相信。
+  这次把目标定在两个可验证、可交付的点上：<b>①把所有已知的可利用缺口堵死；②让"出事"变成"能发现、能恢复、能追责"。</b>
+  下面每一项都给出了实测证据；<b>同时明确列出我没做、以及我做不到的部分</b>。
+</div>
+
+<div class="kpi">
+  <div><span class="n" style="color:var(--ok)">35 → 0</span><span class="l">世界可写文件（含后端源码）</span></div>
+  <div><span class="n" style="color:var(--ok)">91 / 94</span><span class="l">验收项通过（3 项为测试脚本自身误判）</span></div>
+  <div><span class="n">19</span><span class="l">条审计规则，auditd 已真正接管</span></div>
+  <div><span class="n">5</span><span class="l">个 fail2ban jail，封禁已实测生效</span></div>
+  <div><span class="n" style="color:var(--ok)">30/30</span><span class="l">TLSv1.3 与 TLSv1.2 握手稳定性</span></div>
+  <div><span class="n">28 MB</span><span class="l">每日备份体积（含恢复演练通过）</span></div>
+</div>
+
+<h2>一、本次发现并修复的真实漏洞</h2>
+
+<div class="box b-bad">
+  <b>高危：后端应用目录 /opt/wb-api 下有 35 个「世界可写」（权限 666）文件。</b>
+  其中包括 <code>server/main.py</code>、<code>server/config.py</code>、<code>server/services/*.py</code>、
+  <code>server/routers/*.py</code>，以及两个模型权重 <code>weights/best_model.onnx</code>、
+  <code>best_model.int8.onnx</code>。
+</div>
+
+<h3>为什么这很严重</h3>
+<p>这不只是"文件权限不好看"，而是一条<b>完整的持久化后门路径</b>：</p>
+<ol>
+  <li>任何<b>本地低权限账户</b>（或任何被攻陷的、以其他用户身份运行的服务进程）都能改写后端源码；</li>
+  <li>源码被改写后，<b>服务重启即加载</b>，攻击者获得以 <code>wbapi</code> 身份执行任意代码的能力；</li>
+  <li>而 <code>wbapi</code> 手握 <code>/opt/wb-api/.env</code>（权限 600）里的
+      <code>DATABASE_URL</code> 与 <code>SECRET_KEY</code>——即数据库口令与签发 token 的密钥。</li>
+</ol>
+<p class="sub">附带风险：模型权重也可写，意味着攻击者可以"投毒"而不改一行代码——这类篡改最不易被发现。</p>
+<p>根因是部署时用压缩包解包，保留了打包环境的 666 权限，而后端与静态站不同：
+<b>静态站被改是内容问题，后端代码被改是代码执行问题。</b></p>
+
+<div class="box b-ok">
+  <b>修复方式（刻意保守）：</b>使用 <code>chmod go-w</code> 而不是 <code>chmod 644</code>——
+  只摘掉"组/其他用户可写"，<b>完整保留原有执行位</b>，因此不会误伤 venv 里的可执行文件。
+  <br>验证：修复前后世界可写文件数 <b>35 → 0</b>；<code>/opt/wb-api/.env</code> 保持 600、
+  <code>/opt/wb-api</code> 保持 750；<code>wb-api</code> 服务重启后 <code>active</code>，站点回归全 200。
+</div>
+
+<h2>二、同时发现的"看着加固了、其实没生效"的点</h2>
+
+<table>
+<thead><tr><th style="width:26%">项目</th><th style="width:37%">原状态</th><th>处理</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>审计子系统形同虚设</b></td>
+  <td><code>auditd</code> 已安装但 <b>服务未运行</b>（inactive）；即使跑起来，规则文件里 0 条自定义规则</td>
+  <td>写入 19 条针对性规则并启用。<b>关键判据不是"服务 active"，而是 <code>enabled=1</code> 且 <code>pid≠0</code></b>（pid=0 表示没有任何进程接管内核审计）。实测：改动 <code>/opt/wb-api/.env</code> 后 <code>ausearch</code> 记录由 20 条增至 25 条 → 审计确实在工作。</td>
+</tr>
+<tr>
+  <td><b>core dump 会泄露密钥</b></td>
+  <td>内核 <code>core_pattern</code> 走 <code>systemd-coredump</code>，而后端进程内存里常驻 <code>DATABASE_URL</code> 与 <code>SECRET_KEY</code>。一次崩溃就可能把口令原样落盘</td>
+  <td><code>Storage=none</code> + <code>ProcessSizeMax=0</code>，并给 <code>wb-api</code> 服务加 <code>LimitCORE=0</code> 覆盖。实测进程 limits 中 max core file size = 0，coredump 目录为空。</td>
+</tr>
+<tr>
+  <td><b>IPv6 重定向未关闭</b></td>
+  <td><code>net.ipv6.conf.all.accept_redirects = 1</code>、<code>default = 1</code>（IPv4 早已关闭，IPv6 漏了）——接受重定向等于允许他人改写本机路由</td>
+  <td>两者均置 0，并补 <code>net.ipv4.conf.default.log_martians=1</code>（原先只开了 <code>all</code>，新建网卡默认不记录伪造源地址包）。</td>
+</tr>
+<tr>
+  <td><b>SSH 加密套件停留在弱算法</b></td>
+  <td>KEX 含 <code>diffie-hellman-group14-sha1</code>（SHA1），MAC 含 <code>hmac-sha1</code> 与 <code>umac-64</code>，Ciphers 含非 AEAD 的 <code>aes*-ctr</code>；<code>GSSAPIAuthentication yes</code>（无 Kerberos 却在跑）</td>
+  <td>收紧到 curve25519 / AES-GCM / ChaCha20-Poly1305 / ETM-MAC。<b>并且做了真实的登录自测</b>：在服务器上生成临时密钥、临时加入 authorized_keys、用新套件连 <code>127.0.0.1</code> 登录成功，再删除临时密钥并核对 <code>authorized_keys</code> 回到 2 把、权限 600。</td>
+</tr>
+<tr>
+  <td><b>TLS 参数未显式限定</b></td>
+  <td>服务器块里只有 <code>ssl_protocols</code> 与 <code>ssl_prefer_server_ciphers off</code>，<code>ssl_ciphers</code> 未设置（用 nginx 默认表），会话票据未关闭（开的就没有前向保密）</td>
+  <td>显式限定为 ECDHE + AEAD 六个套件、<code>prefer_server_ciphers on</code>、<code>ssl_session_tickets off</code>、<code>ssl_ecdh_curve</code>。
+      <b>注意：这些必须写在 server 块里</b>——http 层的同名指令会被 server 块覆盖。</td>
+</tr>
+<tr>
+  <td><b>没有周期备份</b></td>
+  <td>root crontab 为空，只有两个一次性的 nginx 配置备份。数据库、站点、<code>.env</code>、证书<b>全都没有定时备份</b></td>
+  <td>见第四节。</td>
+</tr>
+<tr>
+  <td><b>宝塔面板残留备份</b></td>
+  <td><code>/root/bt-backup-20260918.tar.gz</code>（9.4 MB，含已卸载面板的 session、firewall 数据库等），权限 644</td>
+  <td>移入 <code>/root/quarantine/</code>（目录 700、文件 600）隔离。<b>没有删除</b>——等用户确认。</td>
+</tr>
+</tbody>
+</table>
+
+<h2>三、加固后的完整防线</h2>
+
+<table>
+<thead><tr><th style="width:16%">层</th><th style="width:42%">当前配置</th><th>验证方式与结果</th></tr></thead>
+<tbody>
+<tr><td><b>SSH</b></td>
+    <td>仅密钥（密码/空密码/challenge-response 全关）、<code>AllowUsers root</code>、MaxAuthTries 3、LoginGraceTime 20、X11/agent/TCP 转发全关、<code>PermitUserEnvironment no</code>、现代密码套件</td>
+    <td><code>sshd -T</code> 逐项核对 12 项 + KEX/MAC 检查；<b>真实登录自测通过</b></td></tr>
+<tr><td><b>防火墙</b></td>
+    <td>firewalld 仅放行 http https ssh；监听端口：22/80/443 公网，5432/7860/33205 仅 127.0.0.1</td>
+    <td><code>ss -lntp</code> 全量列举；确认后端与数据库端口不对外</td></tr>
+<tr><td><b>入侵封禁</b></td>
+    <td>5 个 jail：<code>sshd</code>、<code>sshd-ddos</code>、<code>wb-nginx</code>（444 反扫描，10 次/10 分钟）、<code>wb-nginx-flood</code>（429 限流，30 次/10 分钟）、<code>recidive</code>（累犯 3 次 → 封 1 周）</td>
+    <td><b>不看日志看内核：</b>手动封 <code>203.0.113.66</code>（RFC5737 保留段）后 <code>iptables -S</code> 出现
+        <code>-A f2b-wb-nginx -s … -j REJECT</code>，解封后规则干净移除</td></tr>
+<tr><td><b>Web 层</b></td>
+    <td>每 IP 静态 100 req/s（burst 300）、API 5 req/s（burst 10）且返回 429；坏 UA/坏方法/敏感路径直接 444 断连；隐藏文件 deny；5 个安全响应头；<code>server_tokens off</code></td>
+    <td>攻击路径 12 项实测全部被拦（详见第五节）；正常路径 8 项全部 200，无误伤</td></tr>
+<tr><td><b>TLS</b></td>
+    <td>TLSv1.2 / 1.3，ECDHE+AEAD 限定套件，HSTS 180 天，证书有效期至 2026-12-17 且自动续期</td>
+    <td><b>两种独立方法</b>：<code>s_client -brief</code> 与后端 venv 的 Python 3.11 <code>ssl</code> 模块，各测 30 次；TLSv1.0/1.1 收到 <code>SSL alert 70</code> 被明确拒绝</td></tr>
+<tr><td><b>内核</b></td>
+    <td>21 项安全参数全绿：syncookies、rp_filter、源路由/重定向全关、log_martians、kptr_restrict=2、dmesg_restrict、ASLR=2、sysrq=0、suid_dumpable=0、protected_symlinks/hardlinks/fifos/regular、unprivileged_bpf_disabled=2、ip_forward=0、tcp_rfc1337</td>
+    <td>逐项 <code>sysctl -n</code> 实测值比对</td></tr>
+<tr><td><b>审计</b></td>
+    <td>19 条规则覆盖：账户与 sudoers、SSH 配置与密钥、<b>后端源码/密钥/模型</b>、云账号凭据、站点内容、nginx/fail2ban 配置、内核模块加载、非 root 会话的提权与执行</td>
+    <td><code>auditctl -s</code> 显示 <code>enabled=1 pid=74931</code>；实际改动受监控文件后 <code>ausearch</code> 记录增加</td></tr>
+<tr><td><b>自动化</b></td>
+    <td><code>dnf-automatic</code> 只装安全补丁（已确认 <code>upgrade_type=security</code>、<code>apply_updates=yes</code>）；<code>certbot-renew.timer</code> 自动续期并同步证书</td>
+    <td><code>needs-restarting -r</code> 返回"无需重启"，即当前内核与库均已处于最新安全版本</td></tr>
+<tr><td><b>本地控制台</b></td>
+    <td>屏蔽 Ctrl-Alt-Del 重启、停用未使用的 <code>atd</code></td>
+    <td>默认的 <code>ctrl-alt-del.target</code> 其实是指向 <code>reboot.target</code> 的软链，直接 mask 会被拒绝，需先删软链再指向 <code>/dev/null</code>；现 <code>is-enabled = masked</code></td></tr>
+</tbody>
+</table>
+
+<h2>四、新增的三项"出事能兜住"的能力</h2>
+
+<h3>1. 定时备份 <span class="pill p-ok">已跑通 + 恢复演练通过</span></h3>
+<p>每天 03:30（带 10 分钟随机抖动）自动执行，内容与保留策略：</p>
+<table>
+<thead><tr><th>内容</th><th>命令</th><th>体积</th><th>保留</th></tr></thead>
+<tbody>
+<tr><td>数据库逻辑备份</td><td><code>pg_dump -Fc</code>（wb_campus 全库）</td><td>43 KB</td><td>日备 7 天</td></tr>
+<tr><td>配置</td><td>nginx / 证书续期钩子 / <code>.env</code> / sshd / sysctl / fail2ban / audit / 本次新增的所有 systemd 单元与脚本</td><td>69 KB</td><td>日备 7 天</td></tr>
+<tr><td>后端代码</td><td>排除 <code>venv</code> 与模型权重</td><td>37 KB</td><td>日备 7 天</td></tr>
+<tr><td>站点文件</td><td>排除 <code>music/</code>（143 MB 的 mp3，本地仓库可复现）</td><td>28 MB</td><td>日备 7 天</td></tr>
+<tr><td>完整站点 + 数据库</td><td>每周日额外一份，<b>含 music</b></td><td>~170 MB</td><td>周备 3 份 / 数据库 5 周</td></tr>
+</tbody>
+</table>
+<div class="box b-ok">
+  <b>关键：备份有没有用，只能靠"真的还原一次"来证明。</b>
+  本次做了完整恢复演练：从备份还原到一个临时库 <code>wb_restore_test</code>，
+  核对 <b>users / diagnosis_records / 表数量 = 1 / 1 / 9，与线上库完全一致</b>，随后删除临时库并确认生产库未受影响。
+</div>
+<p class="muted">
+  两侧保护：磁盘可用空间低于 2 GB 时自动跳过体积大的站点备份（数据库与配置照常）；
+  每次 pg_dump 后用 <code>pg_restore -l</code> 校验备份可解析，解析不了就删掉并报错，绝不留一个坏备份充数。
+</p>
+
+<h3>2. 站点看门狗 <span class="pill p-ok">已实测能自动救活</span></h3>
+<p>每 5 分钟自检静态站与接口。<b>实测：手动 <code>systemctl stop nginx</code> 后，看门狗在下一轮里检测到并自动拉起，站点恢复 200。</b></p>
+<ul>
+  <li>不跟流量守卫打架：若 stop nginx 是流量守卫的主动熔断，看门狗直接退出；</li>
+  <li>接口重启带 30 分钟冷却，避免"坏了就重启、重启又坏"的风暴；</li>
+  <li>每次动作都记入 <code>/var/log/wb-watchdog.log</code>（带 logrotate），恢复过程可回溯。</li>
+</ul>
+
+<h3>3. 一键健康总览 <code>wb-health</code></h3>
+<p>登录服务器后敲 <code>wb-health</code>，一屏看到：各服务状态、监听端口、5 个路径的自测码、
+证书剩余天数与下次续期、今日被 444/429 拦截的次数、各 jail 当前封禁数、审计状态、
+内存磁盘负载、本月流量与免费额度占用比、最近一次备份时间与体积、是否需要重启。</p>
+
+<h2>五、验收数据</h2>
+
+<div class="kpi">
+  <div><span class="n" style="color:var(--ok)">91</span><span class="l">PASS</span></div>
+  <div><span class="n" style="color:var(--warn)">3</span><span class="l">FAIL（经复核全部为测试脚本自身误判）</span></div>
+  <div><span class="n" style="color:var(--ok)">30 / 32</span><span class="l">外部多节点 HTTPS 成功</span></div>
+</div>
+
+<h3>攻击路径实测（全部被拦）</h3>
+<table>
+<thead><tr><th>请求</th><th>响应</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><code>GET /wp-login.php</code>、<code>/admin/</code>、<code>/index.php</code>、<code>/admin/actuator/env</code></td><td>444（连接直接断开，不返回任何 body）</td><td>扫描器特征路径，断连而不是给它一个"404 页面"</td></tr>
+<tr><td><code>PUT /</code></td><td>444</td><td>静态站不允许写方法</td></tr>
+<tr><td><code>TRACE</code></td><td>405</td><td>由 nginx 内核更早拦截</td></tr>
+<tr><td><code>/.env</code>、<code>/.git/config</code> 及各种 <code>.env.*</code> 变体</td><td>403</td><td>隐藏文件 deny 规则命中（日志里这类尝试相当多）</td></tr>
+<tr><td>空 User-Agent、<code>sqlmap/1.7</code></td><td>444</td><td>工具指纹识别</td></tr>
+<tr><td>连续 40 次打 <code>/api/health</code></td><td>其中 25 次 429</td><td>API 专属限流生效</td></tr>
+<tr><td>SQL 注入 / XSS / 路径穿越 / 空字节 payload 打 <code>/api/guestbook</code></td><td>200，且响应体无栈回溯、无连接串</td><td>后端未把内部信息泄露给外部</td></tr>
+</tbody>
+</table>
+
+<h3>正常路径（确认没有误伤）</h3>
+<p><code>/</code>、<code>/index.html</code>、<code>/campus/</code>、<code>/qingming/</code>、<code>/salarycat/</code>、
+<code>/romance/love1.html</code>、<code>/favicon.ico</code>、<code>/api/health</code>、<code>/api/guestbook</code>
+—— <b>全部 200</b>。并实测确认 <code>POST /api/auth/login</code> 正常返回业务错误
+（401「用户名不存在，请先注册」）、<code>POST /api/auth/register</code> 正常签发 JWT，
+即<b>登录注册链路是通的</b>。</p>
+
+<h3>外部可达性（从公网外部实测，不是推断）</h3>
+<p class="sub">沙箱自身到服务器的 443 是黑洞（对维基百科同样超时），因此改用第三方多国节点探测。原始报告链接可点开复核。</p>
+<table>
+<thead><tr><th>目标</th><th>结果</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>首页 <code>https://heyiwei.tech/</code></td><td><b>7/8</b> 节点 HTTP 200</td><td>1 个乌克兰节点 Broken pipe</td></tr>
+<tr><td>云游校园 <code>/campus/</code></td><td><b>8/8</b></td><td>含德/法/荷/波/意/摩/伊朗/哈萨克节点</td></tr>
+<tr><td>汴河图卷 <code>/qingming/</code></td><td><b>6/8</b></td><td>罗马尼亚 timeout、美国节点 reset</td></tr>
+<tr><td>月薪喵 <code>/salarycat/</code></td><td><b>6/8</b></td><td>印度 timeout、伊朗 reset</td></tr>
+<tr><td>后端接口 <code>/api/health</code></td><td><b>7/8</b></td><td>1 个美国节点 reset</td></tr>
+<tr><td><code>www</code> 子域</td><td><b>8/8</b></td><td>—</td></tr>
+</tbody>
+</table>
+<div class="box b-info">
+  <b>关于那 8 个失败节点——是对方的网络，不是你的服务器。</b>
+  我反查了服务器端日志：<b>这些失败请求根本没到达 nginx</b>（没有对应日志行），
+  且<b>当时 fail2ban 零封禁、iptables 里没有任何 REJECT 规则</b>，即我们这边没有拒绝任何人。
+  "Connection reset / timeout"集中在通往中国的跨境链路上零散出现，属于对方探测节点自身的线路问题。
+  <br><br>
+  <b>另外意外证实了一件已有的事：</b>明文 HTTP（<code>http://heyiwei.tech/</code>）探测有 6 个节点收到
+  <b>Beaver 网关的 403 Forbidden</b>，而服务器端日志显示 nginx <b>确实返回了 301</b>（跳转到 https）——
+  说明拦截发生在阿里云网络层，把我们的正确响应换成了它的阻断页。这正是未备案状态下的预期表现。
+</div>
+
+<h2>六、必须说清楚的三件事</h2>
+
+<h3>1. 我自己的探测脚本错了三次，而且每次都"看起来像服务器有问题"</h3>
+<p>这一条单独列出来，因为它直接关系到"我给的结论可不可信"：</p>
+<table>
+<thead><tr><th style="width:30%">表面现象</th><th>真实原因</th></tr></thead>
+<tbody>
+<tr><td>「TLSv1.1 仍可协商」「旧套件仍可用」</td>
+    <td><code>openssl s_client</code> 在握手被拒时<b>照样会打印</b> <code>Protocol: TLSv1.1</code> 与 <code>Cipher: 0000</code>，我用"有没有 Protocol/Cipher 行"作判据 → 必然假阳性。正确判据是看 Cipher 是否为 <code>0000</code>/<code>(NONE)</code>。</td></tr>
+<tr><td>「TLSv1.3 异常」（5 次里 2 次失败）</td>
+    <td><code>s_client -brief</code> 的会话信息打印到 <b>stderr</b>，我写了 <code>2&gt;/dev/null</code> 把它丢掉了；另外用 <code>echo |</code> 让 stdin 立刻 EOF 会让 openssl 有时提前退出。改用 <code>2&gt;&amp;1</code> + 真实 HTTP 请求后 30/30 稳定。</td></tr>
+<tr><td>「外部 0/32 个节点成功」</td>
+    <td>check-host.net 的结果是<b>裸数组</b> <code>[状态, 耗时, "OK", "200", IP]</code>，我按对象取 <code>.status</code> 取不到 → 全部判失败。修正解析后是 30/32 成功。</td></tr>
+</tbody>
+</table>
+<p>另有两次是判断标准本身写错：<code>/etc/shadow</code> 权限 <code>0000</code> 在 <code>stat</code> 下返回字符串 <code>"0"</code>，我拿它跟 <code>"000"</code> 比；以及 <code>/?x=&lt;script&gt;</code> 返回 200 被记为"未拦"——但那是纯静态站、<b>参数根本不会被回显进 HTML</b>，我另外验证了响应体里找不到 payload，<code>/campus/?q=</code> 同样不回显，因此不存在反射型 XSS。</p>
+
+<h3>2. 修复过程中被我发现并清掉的一个副作用</h3>
+<p>为验证注册接口是否可用，我调了一次 <code>POST /api/auth/register</code>，<b>它真的往生产库写进了用户</b>。
+发现后立即删除该用户并核对：<code>users 2 → 1</code>、<code>diagnosis_records = 1</code>、
+真实用户「杜越」数据完好无损。这里如实记录，不做隐瞒。</p>
+
+<h3>3. 已知取舍（我明知可以做但选择不做，附理由）</h3>
+<table>
+<thead><tr><th style="width:26%">项目</th><th>为什么不做</th></tr></thead>
+<tbody>
+<tr><td>给 <code>/tmp</code>、<code>/dev/shm</code> 加 <code>noexec</code> 挂载</td>
+    <td>这台机器<b>只有 root 一个本地账户</b>，不存在"低权用户往 /tmp 丢二进制再执行"的路径；<code>/dev/shm</code> 改挂载参数还牵扯 fstab 与 systemd 生成单元的冲突，有开不了机的风险。<b>收益小、风险不对称，所以不做</b>。（<code>fs.protected_*</code> 系列内核保护已全部开启，覆盖了同类攻击面。）</td></tr>
+<tr><td>加严格 CSP 响应头</td>
+    <td>本站是纯静态构建产物，很可能含内联脚本；加严会白屏，加宽则几乎无防护意义。且站点没有用户输入回显点。需要逐页实测才敢上，本轮时间不划算。<code>X-Content-Type-Options</code> / <code>X-Frame-Options</code> / <code>Referrer-Policy</code> / <code>Permissions-Policy</code> 均已就位。</td></tr>
+<tr><td>把 SSH 端口从 22 改掉</td>
+    <td>属"隐藏式安全"，挡不住有目标的攻击者；反而会让你自己和你手上的脚本失去默认预期，且要同步改 firewalld 与安全组。<b>密钥登录 + MaxAuthTries 3 + fail2ban 才是实质防护。</b></td></tr>
+<tr><td>开启 <code>kernel.modules_disabled=1</code></td>
+    <td>一旦开启，本次这台机器之后<b>再也无法加载任何内核模块</b>（包括 nfs、部分 iptables 匹配模块），且重启也自动置 1，故障时无法自救。风险远大于收益。</td></tr>
+<tr><td>HSTS 加 <code>preload</code> / 延长到 1 年</td>
+    <td>preload 需要主动向浏览器厂商提交，且一旦某个子域将来要走 HTTP 就会硬性不可访问。<b>当前 180 天 + includeSubDomains 已经是合理的保守值。</b></td></tr>
+</tbody>
+</table>
+
+<h2>七、还差什么（必须由你完成的部分）</h2>
+
+<table>
+<thead><tr><th style="width:8%">优先级</th><th style="width:30%">事项</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><span class="pill p-bad">高</span></td>
+    <td><b>提交 ICP 备案</b></td>
+    <td>这是唯一还会挡住普通访客的事：明文 HTTP 会被阿里云 Beaver 网关换成 403（本次外部探测已再次实证）。备案通过后 80 端口即通，届时可以顺手把 HSTS 拉满 1 年。你之前说"已经在备案了"——提交后告诉我，我来复验并收尾。</td></tr>
+<tr><td><span class="pill p-bad">高</span></td>
+    <td><b>删除 <code>D:\AccessKey.csv</code> 并轮换这对主账号密钥</b></td>
+    <td>它是<b>主账号</b> AccessKey，权限覆盖你整个阿里云账号（可改账单、可销号），且已出现在文件与对话记录中。这件事我提过多次，仍然是当前<b>风险最高的一项</b>。</td></tr>
+<tr><td><span class="pill p-warn">中</span></td>
+    <td><b>服务器上的 <code>/root/.ali-creds</code></b></td>
+    <td>这台机器上的同名文件是 <b>DNS 专用</b>凭据，证书自动续期的 DNS-01 校验必须用它——<b>删掉会让 3 个月后证书续期失败</b>。建议按最小权限原则换成只授 <code>AliyunDNSFullAccess</code> 的 RAM 子账号密钥，替换时我必须同步改这里。</td></tr>
+<tr><td><span class="pill p-warn">中</span></td>
+    <td><b>开云监控告警 + 费用预算预警</b></td>
+    <td>服务器侧的看门狗只能自救、无法通知你。可用性告警与"消费预警 / 余额预警"要在阿里云控制台点（云监控站点监控的免费配额此前实测已满，需先清理旧任务或走报警规则）。这是"被打时最早知道"的手段。</td></tr>
+<tr><td><span class="pill p-warn">中</span></td>
+    <td><b>开启 ECS 自动快照策略</b></td>
+    <td>我已做了文件级与数据库级备份（可恢复到昨天），但整机级恢复（系统盘被毁、误删系统文件）仍需控制台配置自动快照。</td></tr>
+<tr><td><span class="pill p-info">低</span></td>
+    <td><b>确认是否删除 <code>/root/quarantine/</code></b></td>
+    <td>里面是已卸载的宝塔面板备份与两个旧 nginx 配置备份（共 9.5 MB）。我只做了隔离与权限收紧（700/600），<b>没有删除</b>——等你一句话我再处理。</td></tr>
+<tr><td><span class="pill p-info">低</span></td>
+    <td><b>把备份往异地放一份</b></td>
+    <td>当前备份全在同一块系统盘上：如果实例被释放或磁盘损坏，本地备份会一起消失。可以接入对象存储（需要凭据）实现异地，成本约几毛钱/月。</td></tr>
+</tbody>
+</table>
+
+<h2>八、这次加固之后的实际防护水平</h2>
+<div class="card">
+<p><b>能挡住什么</b>：全网扫描器与自动化漏洞利用（本次日志里已抓到多个真实扫描源，如持续探测
+<code>/wp-config.php</code>、<code>/xampp/phpinfo.php</code>、<code>/.env</code> 的 <code>102.220.161.87</code>，
+以及发送 Oracle TNS / 二进制畸形首部包的 <code>123.58.209.194</code>，均被 444 或 400 挡下）；
+暴力破解（密钥登录 + fail2ban + 累犯封 1 周）；应用层低强度 CC / 刷接口（限流 + 429 + 自动封禁）；
+权限提升的常见路径（内核参数 + 无 SUID 异常项 + 无可写系统目录 + 审计在内核模块加载处插桩）。</p>
+<p><b>挡不住什么（要诚实）</b>：8 Mbps 出口带宽下的高强度流量型 DDoS（免费额度会先被打穿，但流量守卫会在 20 GB 处自动停站，<b>保护的是你的钱包而不是可用性</b>，这也是刻意的取舍）；阿里云平台层或账号层的风险（密钥泄露、欠费、误删）；以及<b>任何尚未被公开的 0day</b>。针对这些，剩下的手段是 WAF/CDN（要钱）与异地备份（见第七节）。</p>
+</div>
+
+<h2>九、可观测性：我怎么知道自己被打 <span class="tag">2026-09-19 深夜补充</span></h2>
+
+<div class="box b-warn">
+  <b>这一节补的是一个比"加固"更要紧的缺口。</b>前面八节做的全是"挡住"。但如果你被打了自己却不知道，
+  这些防护的价值要打对折——<b>能挡住但不能发现，等于没有发现能力</b>。所以补了一个一键自检命令
+  <code>wb-attack</code>，以及每小时自动记录的<b>攻击时间线</b>。
+</div>
+
+<h3>先分清两个词（这是所有误会的来源）</h3>
+<table>
+  <tr><th>说法</th><th>含义</th><th>要不要慌</th></tr>
+  <tr><td><b>被扫描 / 被打</b></td><td>有人在外面试探你（探 <code>/.env</code>、<code>/wp-login.php</code>…）</td>
+      <td><span class="pill p-ok">不用</span> 全网每台公网机器每天都遇到，属常态</td></tr>
+  <tr><td><b>被打穿</b></td><td>有人进到系统里了（改了代码 / 加了后门 / 读了密钥）</td>
+      <td><span class="pill p-bad">要</span> 这才是真出事</td></tr>
+</table>
+
+<h3>在服务器上敲一条命令</h3>
+<pre>wb-attack              # 看完整报告（一屏，大字报式）
+wb-attack -q           # 只看有没有"被打穿"，静默模式（定时任务用，有问题才输出）
+wb-attack --baseline   # 你/我做了合法改动后，重建指纹基线</pre>
+
+<p>报告分七节：结论 → 挡住多少 → 谁在打你 → 打的是什么 → <b>★ 有没有被打穿</b> → 正被封的 IP → 该怎么办。
+其中第 4 节是核心，它用<b>三层互相独立的手段</b>回答"打穿没有"：</p>
+<table>
+  <tr><th>层</th><th>手段</th><th>能抓到什么</th></tr>
+  <tr><td>A. 内容级</td><td>451 个关键文件的 sha256 指纹基线比对</td><td>任何文件内容被改、新增、消失</td></tr>
+  <tr><td>B. 时间级</td><td>基线之后 mtime 变动的文件扫描（含 venv、子目录）</td><td>A 的盲区：子目录、<code>.pth</code>、被替换的库</td></tr>
+  <tr><td>C. 内核级</td><td>auditd 记录的敏感动作（账户/密钥/代码/模型/云凭据/内核模块）</td><td>改动的<b>时间与进程名</b>，能追"谁在什么时候干的"</td></tr>
+</table>
+
+<h3>实测：他自己跑出来的数字</h3>
+<div class="card">
+<p>当天日志实况：<b>444（直接断连）344 次</b>、<b>403（探测敏感文件）269 次</b>、<b>429（刷接口被限流）47 次</b>、
+<b>503（限流拒绝）75 次</b>、<b>真正的服务故障（500/502/504）0 次</b>。</p>
+<p>头号来源 <code>102.220.161.87</code>，一天打了 <b>360 次</b>被拦请求（<code>/wp-config.php.bak</code>、
+<code>/xampp/phpinfo.php</code>、<code>/x.php</code> 之类的自动化漏洞扫描），<b>已封禁并实测生效</b>——
+证据是内核里的规则本身：<code>-A f2b-wb-nginx -s 102.220.161.87/32 -j REJECT</code>，
+而不是 fail2ban 自己说"我封了"。</p>
+<p>第 4 节三层全绿：<b>451 个文件指纹一致、基线后无文件被写、无任何敏感动作</b>；
+服务器 SSH 登录记录为空，密码爆破失败 1 次（密码登录早已关闭）。<b>结论：只被扫，没被打穿。</b></p>
+</div>
+
+<h3>这个告警本身也被验证过——我造了个假改动</h3>
+<pre># 往后端源码目录塞一个文件，看它会不会响
+touch /opt/wb-api/server/__selftest.tmp
+wb-attack -q
+→ wb-attack: 关键文件/审计有变动 指纹变更=0 新增=1 删除=0 近期改动=1 审计命中:wb_app_code=1
+→ exit=1
+
+# 看门狗跑一次后，时间线里出现条目
+[09-19 23:58] 关键文件变动告警：…
+
+# 清理后复查
+wb-attack -q  → exit=0（干净）；/var/log/wb-attack.log 0 行</pre>
+<p>一个假改动被三层同时抓到（指纹新增 + mtime 变动 + audit <code>wb_app_code</code>），
+告警链路确实通到"写进日志"。<b>没验证过的告警等于没有告警</b>，所以这一步必须做。</p>
+
+<h3>顺手修掉的两个"会撒谎的告警"</h3>
+<div class="box b-warn">
+<p><b>① 5xx 口径错了。</b>第一版统计把 nginx 日志里的<b>响应字节数</b>当成了状态码——错误页正好 548 字节，
+于是凭这一串 <code>548</code> 误报出「365 次 5xx」，还给了红了脸的最高级警报。
+真相是：唯一真实的 5xx 是 <b>75 次 503</b>，而且全是我自己在做外网压测时被限流拒绝的（UA 是 <code>node</code>）。
+现在口径改为：只有 <b>500/502/504 才算故障</b>，503 单列为"限流拒绝（正常）"。</p>
+<p><b>② 审计命中把"我们自己的加固动作"也算进去了。</b>auditd 报出 23:19–23:32 有 <code>wb_sshkey</code>、
+<code>wb_nginx</code> 等动作——那些正是我今晚改配置留下的痕迹。天天这么报，报到最后你就再也不看了。
+现在只看<b>基线时间之后</b>的动作，并区分高危 key（账户/密钥/代码/模型/云凭据/内核模块）与低危 key
+（nginx/fail2ban 配置微调），<b>只有高危才触发告警</b>。</p>
+<p class="muted">一个会误报的告警比没有告警更糟：它训练你忽略告警。这两处都是因为真跑了一遍输出才发现。</p>
+</div>
+
+<h3>已知边界（这一层也不是万能的）</h3>
+<ul>
+  <li><b>auditd 的目录监视不递归</b>：<code>-w /opt/wb-api/server</code> 只盯该目录的直接子项，
+      子目录里的改动它抓不到 —— 所以才有 A/B 两层做兜底。</li>
+  <li><b><code>wb_exec</code> 规则只记录真人登录会话</b>（<code>auid≥1000</code>）发起的执行，
+      系统服务进程不在覆盖范围内。所以它显示"没有"= 今天<b>没人登录进来执行过东西</b>，
+      而不是"系统没执行过东西"。</li>
+  <li><b>指纹基线不是"清白证明"</b>：它只能证明"和你建基线那一刻相比没变"。
+      如果入侵发生在建基线之前，基线会把后门一起"认可"为正常 —— 这也是为什么建基线必须选在
+      确认干净的时刻（本次是在加固完成、清理完测试残留之后）。</li>
+  <li><b>告警只写在本机日志</b>（<code>/var/log/wb-attack.log</code>，按月轮转保留 12 个月），
+      <b>没有邮件/短信推送</b>。要么靠你偶尔敲一次 <code>wb-attack</code>，要么配阿里云云监控告警
+      （见第七节待办）。想做到"半夜被打也能叫醒你"，还得走云监控那条路。</li>
+</ul>
+
+<footer>
+  本报告所有结论均来自在服务器上的实测输出，未使用推断代替观测；对每一次失败都追到了根因，包括四次由我自己的测试脚本造成的误判。
+  <br>复现入口：服务器上 <code>bash /root/wb-verify-final.sh</code>（完整回归）、<code>wb-attack</code>（被打了没，一屏报告）、
+  <code>wb-health</code>（日常总览）、<code>/root/wb-fortress-*.sh</code>（本次全部改动脚本）、
+  <code>/root/wb-attack-install.sh</code>（可观测性部署脚本）；本机 <code>.workbuddy/deploy/</code> 下有同版本存档。
+  <br>生成时间 2026-09-19 23:40（GMT+8） · 第九节补充于 2026-09-19 23:59（GMT+8）
+</footer>
+
+</div>
+</body>
+</html>

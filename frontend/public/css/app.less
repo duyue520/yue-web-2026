@@ -1,0 +1,187 @@
+.v-card{
+    backdrop-filter: blur(var(--leleo-blur));
+    border-radius: clamp(12px, 5%, 22px);
+    color: var(--leleo-vcard-color);
+    /* ThreeUI 质感：细高光描边 + 多层柔和投影 + 顺滑过渡 */
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.45) inset,
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s cubic-bezier(.2,.8,.2,1);
+}
+
+/* 可悬停卡片：轻微浮起 + 阴影加深（ThreeUI 微交互） */
+.v-card--hover:hover,
+.v-card[hover]:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.5) inset,
+        0 18px 44px rgba(0, 0, 0, 0.18),
+        0 6px 16px rgba(0, 0, 0, 0.10);
+}
+
+/* 文本选中色贴合站内绿色主题 */
+::selection {
+    background: rgba(102, 187, 106, 0.35);
+}
+
+/* 首页底部备案信息（合规要求：首页可见 + 可点开工信部） */
+.wb-icp {
+    position: fixed;
+    left: 50%;
+    bottom: 5px;
+    transform: translateX(-50%);
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    letter-spacing: .3px;
+    white-space: nowrap;
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.75);
+}
+.wb-icp a {
+    color: rgba(255, 255, 255, 0.68);
+    text-decoration: none;
+    transition: color .2s ease;
+}
+.wb-icp a:hover { color: #fff; }
+.wb-icp-dot { color: rgba(255, 255, 255, 0.35); }
+
+.vapp-fullscreen-background {
+    position: fixed;
+    background-color: #282c34;
+    z-index: -1;
+    
+    .floating-switch-container {
+        position: fixed;
+        right: 0;
+        z-index: 99;
+      }
+      
+    .floating-switch {
+        transform: translateX(53%); /* 初始状态下隐藏大部分 */
+        transition: transform 0.3s ease;
+    }
+    
+    .floating-switch:hover {
+        transform: translateX(0); /* 悬停时完全展开 */
+    }
+    /* 调整视频元素的样式，使其全屏作为背景 */
+    .video-bg {
+        position: fixed;
+        z-index: -100;
+        // left: 0;
+        // top: 0;
+        // width: 100%;
+        // height: 100%;
+        object-fit: cover;
+        margin: auto;
+        background-clip: padding-box;
+        filter: brightness(var(--leleo-brightness));
+    }
+    .loading{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%; 
+        height: 100%; 
+        background-color: #282c34;
+        z-index: 9999;
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+    }
+    .fade-enter-active, .fade-leave-active { 
+        transition: opacity .8s
+      }
+    .fade-enter, .fade-leave-to { 
+        opacity: 0  
+    }
+
+    .leleo-left{
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-around;
+        &-welcome{
+            margin-top: 10px;
+            width: 100%;
+            color: var(--leleo-welcomtitle-color);
+            padding: 0 2rem;
+            font-family: "myfont";
+        }
+        &-avatar{
+            .musicplayer{
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                display: flex;
+                justify-content: space-evenly;
+                align-items: center;
+            }
+            .musicplayer-text{
+                position: absolute;
+                font-size: 12px;
+                white-space: nowrap;
+                overflow: hidden;
+            }
+            .leleo-spin {
+                animation: spin 6s linear infinite;
+            }
+            .loading-spinner {
+                position: absolute;
+                 top: 50%;
+                left: 50%;
+                 transform: translate(-50%, -50%); 
+                z-index: 1; 
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            .fade-in {
+                animation: fadeIn .6s ease ;
+              }
+              
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+        }
+        &-socialIconsContainer{
+            .leleo-social-bticon:hover{
+                transform: scale(1.2);
+            }
+        }
+    }
+    .clock-font{
+        font-family: "digitalfont";
+        font-weight: 800;
+    }
+}
+  
+/* 添加一个::before伪元素降低背景图片的亮度，而不会影响background元素的其他内容 */
+.vapp-fullscreen-background::before {
+    content: "";
+    background-image: var(--leleo-background-image-url); 
+    transition: background-image 0.8s ease;
+    background-size:cover;
+    background-position: center;
+    position: absolute;   
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    /* 调整亮度值  */
+    filter: brightness(var(--leleo-brightness));
+}
+.vapp-fullscreen-background.radius-before::before{
+    border-radius: 16px;
+}

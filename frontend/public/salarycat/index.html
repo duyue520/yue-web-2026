@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐱 月薪喵 ⚡</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#050510; min-height:100vh; overflow:hidden;
+  font-family:'Microsoft YaHei',sans-serif;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  user-select:none; -webkit-user-select:none;
+}
+canvas { position:fixed; top:0; left:0; z-index:0; }
+
+/* 霓虹网格 */
+.grid-bg {
+  position:fixed; top:0; left:0; width:100%; height:100%; z-index:0;
+  background-image:
+    linear-gradient(rgba(255,0,128,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,255,0.04) 1px, transparent 1px);
+  background-size:50px 50px;
+  animation:gridShift 8s linear infinite;
+}
+@keyframes gridShift {
+  0%{background-position:0 0,0 0}
+  100%{background-position:50px 50px,50px 50px}
+}
+
+/* 三只猫 */
+.cats-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:1.5vw; position:relative; z-index:2;
+}
+.cat-wrap { display:flex; flex-direction:column; align-items:center; position:relative; }
+.cat-wrap.side .cat-img { width:min(250px, 25vw); }
+.cat-wrap.center .cat-img { width:min(360px, 36vw); }
+.cat-img {
+  image-rendering:pixelated;
+  filter:drop-shadow(0 0 25px #ff00aa) drop-shadow(0 0 50px #ff0066) drop-shadow(0 0 90px rgba(0,200,255,0.5));
+}
+
+/* 呼吸缩放 + 霓虹变色 */
+@keyframes breatheRock {
+  0%,100%{transform:scale(0.8) rotate(-0.5deg);filter:drop-shadow(0 0 25px #ff00aa)drop-shadow(0 0 50px #ff0066)}
+  25%{transform:scale(1.2) rotate(0.5deg);filter:drop-shadow(0 0 40px #00ccff)drop-shadow(0 0 80px #0066ff)}
+  50%{transform:scale(0.85) rotate(-0.3deg);filter:drop-shadow(0 0 30px #ff00ff)drop-shadow(0 0 60px #cc00ff)}
+  75%{transform:scale(1.15) rotate(0.3deg);filter:drop-shadow(0 0 35px #ff6600)drop-shadow(0 0 70px #ff0066)}
+}
+.cat-wrap.center .cat-img { animation:breatheRock 2.8s ease-in-out infinite; }
+.cat-wrap.side .cat-img { animation:breatheRock 2.8s ease-in-out 0.2s infinite; }
+
+/* 流光文字 */
+.message-wrap { position:relative; z-index:2; margin-top:20px; }
+.message {
+  color:#fff; font-size:clamp(18px, 3.5vw, 32px);
+  text-align:center; letter-spacing:3px; font-weight:900;
+  background:linear-gradient(90deg, #ff0080, #ff8c00, #00e5ff, #ff0080);
+  background-size:300% 100%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+  animation:textShine 3s linear infinite, textPulse 1.5s ease-in-out infinite;
+  filter:drop-shadow(0 0 15px rgba(255,0,128,0.8)) drop-shadow(0 0 30px rgba(0,200,255,0.5));
+}
+@keyframes textShine {
+  0%{background-position:0% 50%}
+  100%{background-position:300% 50%}
+}
+@keyframes textPulse {
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.08)}
+}
+
+@media (max-width:600px) {
+  .cats-row { gap:0.3vw; }
+  .cat-wrap.side .cat-img { width:min(120px, 22vw); }
+  .cat-wrap.center .cat-img { width:min(180px, 32vw); }
+}
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<canvas id="c"></canvas>
+
+<div class="cats-row">
+  <div class="cat-wrap side"><img class="cat-img" src="cat.GIF" alt=""></div>
+  <div class="cat-wrap center"><img class="cat-img" src="cat.GIF" alt=""></div>
+  <div class="cat-wrap side"><img class="cat-img" src="cat.GIF" alt="" style="transform:scaleX(-1);"></div>
+</div>
+
+<div class="message-wrap">
+  <div class="message" id="msg">💰 月薪喵祝你发财！💰</div>
+</div>
+
+<script>
+// ==================== 音乐 ====================
+const audio = new Audio('music.mp3');
+audio.loop = true;
+audio.volume = 0.7;
+audio.play().catch(() => {
+  document.addEventListener('click', () => audio.play().catch(()=>{}), {once:true});
+});
+
+// ==================== 画布 ====================
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W, H;
+function resize() { W=c.width=window.innerWidth; H=c.height=window.innerHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// ==================== 星空 ====================
+const stars = [];
+for (let i=0;i<120;i++) stars.push({
+  x:Math.random()*2000, y:Math.random()*2000,
+  r:Math.random()*1.5+0.3, speed:Math.random()*0.025+0.005,
+  hue:Math.random()*360
+});
+
+// ==================== 粒子 ====================
+let particles = [];
+
+const PAL = {
+  neon:['#ff00aa','#ff0066','#ff00ff','#ff1493','#ff69b4'],
+  elec:['#00e5ff','#00bfff','#0066ff','#00ffff','#7df9ff'],
+  fire:['#ff4500','#ff6600','#ff8c00','#ffd700','#ff0000'],
+  acid:['#39ff14','#00ff00','#7fff00','#adff2f','#00fa9a'],
+  white:['#ffffff','#f0f0f0','#e0e0ff','#ffe0f0','#fff'],
+  pink:['#ff69b4','#ff1493','#ffb6c1','#ffc0cb','#ff85a2'],
+};
+
+function rnd(a,b){return a+Math.random()*(b-a)}
+function pick(a){return a[Math.floor(Math.random()*a.length)]}
+
+function boom(x,y,palette,count=30){
+  for(let i=0;i<count;i++){
+    const a=rnd(0,Math.PI*2),sp=rnd(3,14);
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-rnd(1,5),
+      life:1,decay:rnd(0.005,0.02),size:rnd(1,4),color:pick(palette),
+      type:'boom',trail:[],gravity:rnd(0.03,0.08)});
+  }
+}
+
+function lightning(x,y,palette){
+  const c=palette||PAL.elec;
+  for(let i=0;i<15;i++){
+    const a=rnd(0,Math.PI*2),l=rnd(30,100);
+    particles.push({x,y,vx:Math.cos(a)*rnd(0.3,1),vy:Math.sin(a)*rnd(0.3,1),
+      life:1,decay:rnd(0.03,0.08),size:rnd(1.5,3),color:pick(c),
+      type:'bolt',len:l,angle:a,gravity:0.01});
+  }
+}
+
+function shockwave(x,y,palette){
+  particles.push({x,y,vx:0,vy:0,life:1,decay:rnd(0.015,0.03),
+    size:5,maxR:rnd(80,180),color:pick(palette),type:'ring',gravity:0});
+}
+
+function heartBurst(cx,cy,palette){
+  for(let i=0;i<80;i++){
+    const t=(i/80)*Math.PI*2;
+    const hx=16*Math.pow(Math.sin(t),3)*rnd(0.7,1.3)*9;
+    const hy=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*rnd(0.7,1.3)*7;
+    particles.push({x:cx+hx,y:cy+hy,vx:hx*0.06,vy:hy*0.06-rnd(0.5,2),
+      life:1,decay:rnd(0.008,0.025),size:rnd(1.5,3.5),color:pick(palette),
+      type:'heart',gravity:rnd(0.02,0.05)});
+  }
+}
+
+// ==================== 自动特效调度 ====================
+let tick=0, bassDrop=0;
+function autoFX(){
+  tick++;
+  const t=W/3;
+  // 三区自动烟花
+  if(Math.random()<0.035) boom(rnd(0,t),rnd(H*0.08,H*0.4),Math.random()<0.3?PAL.elec:PAL.neon,rnd(20,40));
+  if(Math.random()<0.045) boom(rnd(t,t*2),rnd(H*0.08,H*0.4),PAL.fire,rnd(25,50));
+  if(Math.random()<0.035) boom(rnd(t*2,W),rnd(H*0.08,H*0.4),Math.random()<0.3?PAL.acid:PAL.pink,rnd(20,40));
+  // 闪电
+  if(Math.random()<0.01) lightning(rnd(0,W),rnd(H*0.05,H*0.3),Math.random()<0.5?PAL.elec:PAL.white);
+  // 冲击波组
+  bassDrop++;
+  if(bassDrop>35&&Math.random()<0.3){
+    shockwave(W/2,H*0.3,PAL.white);
+    shockwave(W*0.3,H*0.25,PAL.elec);
+    shockwave(W*0.7,H*0.35,PAL.neon);
+    bassDrop=0;
+  }
+  // 爱心
+  if(Math.random()<0.003) heartBurst(W/2,H*0.3,PAL.fire);
+  // 屏幕震动
+  if(Math.random()<0.006){
+    document.body.style.transform=`translate(${rnd(-4,4)}px,${rnd(-3,3)}px)`;
+    setTimeout(()=>document.body.style.transform='',80);
+  }
+}
+
+// ==================== 自动换话 ====================
+const messages=[
+  '💰 月薪喵祝你发财！💰','🚀 升职加薪，走上巅峰','🔥 今天也是元气满满的一天',
+  '🍀 好运连连，事事顺心','✨ 万事如意，心想事成','💪 加油！你是最棒的',
+  '🎉 每天都有好运气','🌟 前途似锦，未来可期','🏆 一切顺利，步步高升',
+  '💎 努力的人运气不会差','🎯 目标明确，一往无前','🌈 美好的一天从现在开始',
+];
+function changeMsg(){
+  const el=document.getElementById('msg');
+  el.textContent=pick(messages);
+  el.style.animation='none';el.offsetHeight;
+  el.style.animation='textShine 3s linear infinite,textPulse 1.5s ease-in-out infinite';
+  heartBurst(W/2,H*0.35,PAL.fire);
+  boom(W/2,H*0.35,PAL.neon,30);
+  shockwave(W/2,H*0.35,PAL.elec);
+}
+setInterval(changeMsg, 2000);
+
+// ==================== 主循环 ====================
+function loop(){
+  ctx.fillStyle='rgba(5,5,16,0.2)';
+  ctx.fillRect(0,0,W,H);
+
+  for(const s of stars){
+    s.y-=s.speed;if(s.y<-10){s.y=H+10;s.x=Math.random()*W;}
+    const a=0.3+0.3*Math.sin(tick*0.02+s.x);
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`hsla(${s.hue},100%,70%,${a})`;ctx.fill();
+  }
+
+  autoFX();
+
+  const alive=[];
+  for(const p of particles){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=p.gravity;p.life-=p.decay;
+    if(p.life<=0)continue;
+    const a=Math.min(1,p.life*1.3);
+    const r=parseInt(p.color.slice(1,3),16);
+    const g=parseInt(p.color.slice(3,5),16);
+    const b=parseInt(p.color.slice(5,7),16);
+    ctx.save();
+    if(p.type==='bolt'){
+      ctx.strokeStyle=`rgba(${r},${g},${b},${a})`;ctx.lineWidth=p.size;
+      ctx.shadowColor=p.color;ctx.shadowBlur=15;
+      ctx.beginPath();ctx.moveTo(p.x,p.y);
+      let lx=p.x,ly=p.y;
+      for(let s=0;s<4;s++){lx+=Math.cos(p.angle)*p.len*0.25+rnd(-15,15);ly+=Math.sin(p.angle)*p.len*0.25+rnd(-15,15);ctx.lineTo(lx,ly);}
+      ctx.stroke();
+    }else if(p.type==='ring'){
+      const rad=p.maxR*(1-p.life);
+      ctx.beginPath();ctx.arc(p.x,p.y,rad,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(${r},${g},${b},${a*0.6})`;ctx.lineWidth=2;
+      ctx.shadowColor=p.color;ctx.shadowBlur=20;ctx.stroke();
+      ctx.beginPath();ctx.arc(p.x,p.y,rad*0.7,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(${r},${g},${b},${a*0.3})`;ctx.lineWidth=1;ctx.stroke();
+    }else{
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${r},${g},${b},${a})`;ctx.shadowColor=p.color;ctx.shadowBlur=10;ctx.fill();
+      p.trail=p.trail||[];p.trail.push({x:p.x,y:p.y});
+      if(p.trail.length>4)p.trail.shift();
+      for(let i=1;i<p.trail.length;i++){
+        const ta=a*(i/p.trail.length)*0.4;
+        ctx.beginPath();ctx.moveTo(p.trail[i-1].x,p.trail[i-1].y);ctx.lineTo(p.trail[i].x,p.trail[i].y);
+        ctx.strokeStyle=`rgba(${r},${g},${b},${ta})`;ctx.lineWidth=p.size*0.5;ctx.stroke();
+      }
+    }
+    ctx.restore();
+    alive.push(p);
+  }
+  particles=alive;
+  requestAnimationFrame(loop);
+}
+
+// ==================== 开场炸裂 ====================
+setTimeout(()=>{
+  boom(W*0.2,H*0.3,PAL.elec,40);boom(W*0.5,H*0.25,PAL.fire,50);boom(W*0.8,H*0.3,PAL.neon,40);
+  shockwave(W/2,H*0.3,PAL.white);
+  setTimeout(()=>{heartBurst(W/2,H*0.3,PAL.fire);lightning(W/2,H*0.2,PAL.elec);},600);
+},500);
+
+loop();
+</script>
+</body>
+</html>

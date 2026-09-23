@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>鼓励</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+        #canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .top-deco {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .top-deco span {
+            color: rgba(255,255,255,0.15);
+            font-size: 12px;
+            letter-spacing: 4px;
+        }
+        .mode-badge {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,215,0,0.2);
+            border-radius: 20px;
+            padding: 6px 16px;
+            color: rgba(255,215,0,0.7);
+            font-size: 12px;
+            letter-spacing: 2px;
+        }
+        
+        .content {
+            text-align: center;
+            max-width: 800px;
+            padding: 40px 30px;
+            width: 100%;
+        }
+        .title {
+            font-size: clamp(26px, 5vw, 48px);
+            font-weight: 900;
+            background: linear-gradient(90deg, #f7971e, #ffd200, #f7971e, #ff6b6b);
+            background-size: 300% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 4s linear infinite;
+            margin-bottom: 12px;
+            letter-spacing: 4px;
+        }
+        @keyframes shimmer {
+            0% { background-position: 0% center; }
+            100% { background-position: 300% center; }
+        }
+        .subtitle {
+            color: rgba(255,255,255,0.4);
+            font-size: clamp(12px, 1.5vw, 16px);
+            margin-bottom: 40px;
+            letter-spacing: 8px;
+        }
+        
+        .tag-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+            letter-spacing: 2px;
+        }
+        .tag:hover {
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
+        }
+        .tag.active {
+            background: rgba(255,215,0,0.15);
+            border-color: rgba(255,215,0,0.3);
+            color: #ffd200;
+        }
+        
+        .quote-box {
+            background: rgba(255,255,255,0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 24px;
+            padding: 50px 40px;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .quote-box::before {
+            content: '"';
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            font-size: 120px;
+            color: rgba(255,215,0,0.06);
+            font-family: Georgia, serif;
+            line-height: 1;
+        }
+        .quote-box::after {
+            content: '"';
+            position: absolute;
+            bottom: -70px;
+            right: 20px;
+            font-size: 120px;
+            color: rgba(255,215,0,0.06);
+            font-family: Georgia, serif;
+        }
+        
+        .type-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 1.2em;
+            background: #ffd200;
+            margin-left: 3px;
+            vertical-align: text-bottom;
+            animation: blink 0.8s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        
+        .quote-text {
+            font-size: clamp(22px, 3.5vw, 38px);
+            color: #fff;
+            font-weight: 600;
+            line-height: 1.7;
+            min-height: 100px;
+            position: relative;
+            z-index: 1;
+        }
+        .quote-text .char {
+            display: inline-block;
+            opacity: 0;
+            animation: charAppear 0.05s ease forwards;
+        }
+        @keyframes charAppear {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .quote-author {
+            margin-top: 25px;
+            color: rgba(255,215,0,0.6);
+            font-size: clamp(13px, 1.5vw, 16px);
+            letter-spacing: 3px;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .quote-author.show {
+            opacity: 1;
+        }
+        
+        .btn-group {
+            margin-top: 35px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 50px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn:active {
+            transform: scale(0.96);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #f7971e, #ffd200);
+            color: #1a1a2e;
+            box-shadow: 0 4px 20px rgba(255,215,0,0.25);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(255,215,0,0.4);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.12);
+            transform: translateY(-2px);
+        }
+        .btn-secondary.playing {
+            background: rgba(255,100,100,0.15);
+            border-color: rgba(255,100,100,0.3);
+            color: #ff6b6b;
+        }
+        
+        .counter {
+            margin-top: 25px;
+            color: rgba(255,255,255,0.25);
+            font-size: 13px;
+            letter-spacing: 3px;
+        }
+        
+        .dot-group {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+        }
+        .dot.active {
+            background: #ffd200;
+            box-shadow: 0 0 10px rgba(255,215,0,0.5);
+            width: 20px;
+            border-radius: 3px;
+        }
+        
+        .sparkle {
+            position: fixed;
+            pointer-events: none;
+            border-radius: 50%;
+            z-index: 0;
+            animation: sparkleAnim 1s ease-out forwards;
+        }
+        @keyframes sparkleAnim {
+            0% {
+                transform: scale(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5) rotate(180deg);
+                opacity: 0;
+            }
+        }
+        
+        .footer-tip {
+            position: absolute;
+            bottom: 20px;
+            color: rgba(255,255,255,0.12);
+            font-size: 12px;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="container">
+        <div class="top-deco">
+            <span>✦ FOR YOU</span>
+            <div class="mode-badge" id="modeBadge">⭐ 励志</div>
+        </div>
+
+        <div class="content">
+            <div class="title">✨ 致我的朋友 ✨</div>
+            <div class="subtitle">— 愿你成为更好的自己 —</div>
+            
+            <div class="tag-group" id="tagGroup">
+                <div class="tag active" data-category="all" onclick="switchCategory('all')">🌟 全部</div>
+                <div class="tag" data-category="inspire" onclick="switchCategory('inspire')">💪 励志</div>
+                <div class="tag" data-category="discipline" onclick="switchCategory('discipline')">⏰ 自律</div>
+                <div class="tag" data-category="warm" onclick="switchCategory('warm')">☀️ 温暖</div>
+            </div>
+            
+            <div class="quote-box" id="quoteBox">
+                <div class="quote-text" id="quoteText"></div>
+                <div class="quote-author" id="quoteAuthor"></div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" id="nextBtn" onclick="nextQuote()">💪 换一句</button>
+                <button class="btn btn-secondary" id="autoBtn" onclick="toggleAuto()">▶ 自动播放</button>
+            </div>
+
+            <div class="dot-group" id="dotGroup"></div>
+            <div class="counter" id="counter"></div>
+        </div>
+
+        <div class="footer-tip">按空格键切下一句 · Enter自动播放</div>
+    </div>
+
+    <script>
+        const quotes = {
+            inspire: [
+                { text: "你现在的努力，藏着你十年后的样子。", author: "— 致奋斗的你" },
+                { text: "熬过无人问津的日子，才能拥抱诗和远方。", author: "— 致坚持的你" },
+                { text: "半山腰总是最挤的，你得去山顶看看。", author: "— 致攀登者" },
+                { text: "乾坤未定，你我皆是黑马。", author: "— 致逆袭者" },
+                { text: "既然选择了远方，便只顾风雨兼程。", author: "— 汪国真" },
+                { text: "星光不问赶路人，时光不负有心人。", author: "— 致追梦者" },
+                { text: "所有的不期而遇，都是努力后的惊喜。", author: "— 致追梦人" }
+            ],
+            discipline: [
+                { text: "自律的前期是兴奋，中期是痛苦，后期是享受。", author: "— 自律箴言" },
+                { text: "每天进步1%，一年后你会强大37倍。", author: "— 复利思维" },
+                { text: "不要假装很努力，因为结果不会陪你演戏。", author: "— 现实箴言" },
+                { text: "你有多自律，就有多自由。", author: "— 自律即自由" },
+                { text: "不积跬步，无以至千里。", author: "— 荀子《劝学》" },
+                { text: "少壮不努力，老大徒伤悲。", author: "— 《长歌行》" },
+                { text: "宝剑锋从磨砺出，梅花香自苦寒来。", author: "— 警世贤文" },
+                { text: "坚持就是胜利，努力会有回报。", author: "— 致永不言弃的你" }
+            ],
+            warm: [
+                { text: "种一棵树最好的时间是十年前，其次是现在。", author: "— 立即行动" },
+                { text: "你的气质里，藏着你读过的书和爱过的人。", author: "— 提升自我" },
+                { text: "今天的不开心就到此为止，明天依然光芒万丈。", author: "— 致亲爱的你" },
+                { text: "愿你历尽千帆，归来仍是少年。", author: "— 致最好的你" },
+                { text: "当你觉得为时已晚的时候，恰恰是最早的时候。", author: "— 哈佛校训" },
+                { text: "你有多自律，就有多自由。", author: "— 自律即自由" }
+            ]
+        };
+        quotes.all = [...quotes.inspire, ...quotes.discipline, ...quotes.warm];
+
+        let currentCategory = 'all';
+        let currentIndex = 0;
+        let autoTimer = null;
+        let isAutoPlaying = false;
+        let isTyping = false;
+
+        const quoteText = document.getElementById('quoteText');
+        const quoteAuthor = document.getElementById('quoteAuthor');
+        const counter = document.getElementById('counter');
+        const dotGroup = document.getElementById('dotGroup');
+        const modeBadge = document.getElementById('modeBadge');
+
+        function typeWriter(text, element, callback) {
+            isTyping = true;
+            element.innerHTML = '';
+            let i = 0;
+            const chars = text.split('');
+            
+            function type() {
+                if (i < chars.length) {
+                    const span = document.createElement('span');
+                    span.className = 'char';
+                    span.textContent = chars[i];
+                    span.style.animationDelay = '0s';
+                    element.appendChild(span);
+                    i++;
+                    setTimeout(type, 30 + Math.random() * 20);
+                } else {
+                    const cursor = document.createElement('span');
+                    cursor.className = 'type-cursor';
+                    element.appendChild(cursor);
+                    isTyping = false;
+                    if (callback) callback();
+                }
+            }
+            type();
+        }
+
+        function showQuote(index, animate = true) {
+            const list = quotes[currentCategory];
+            currentIndex = ((index % list.length) + list.length) % list.length;
+            const quote = list[currentIndex];
+
+            counter.textContent = `${currentIndex + 1} / ${list.length}`;
+            
+            document.querySelectorAll('.dot').forEach((d, i) => {
+                d.classList.toggle('active', i === currentIndex);
+            });
+
+            modeBadge.textContent = 
+                currentCategory === 'all' ? '🌟 全部' :
+                currentCategory === 'inspire' ? '💪 励志' :
+                currentCategory === 'discipline' ? '⏰ 自律' : '☀️ 温暖';
+
+            quoteAuthor.classList.remove('show');
+            
+            if (animate) {
+                typeWriter(quote.text, quoteText, () => {
+                    setTimeout(() => quoteAuthor.classList.add('show'), 200);
+                    quoteAuthor.textContent = quote.author;
+                });
+            } else {
+                quoteText.innerHTML = quote.text;
+                quoteAuthor.textContent = quote.author;
+                quoteAuthor.classList.add('show');
+            }
+        }
+
+        function switchCategory(category) {
+            if (category === currentCategory) return;
+            currentCategory = category;
+            currentIndex = 0;
+            
+            document.querySelectorAll('.tag').forEach(t => {
+                t.classList.toggle('active', t.dataset.category === category);
+            });
+
+            renderDots();
+            showQuote(0);
+            createSparkles();
+        }
+
+        function renderDots() {
+            const list = quotes[currentCategory];
+            dotGroup.innerHTML = '';
+            list.forEach((_, i) => {
+                const dot = document.createElement('div');
+                dot.className = 'dot' + (i === 0 ? ' active' : '');
+                dotGroup.appendChild(dot);
+            });
+        }
+
+        function nextQuote() {
+            if (isTyping) return;
+            if (isAutoPlaying) toggleAuto();
+            showQuote(currentIndex + 1);
+            createSparkles();
+        }
+
+        function toggleAuto() {
+            const btn = document.getElementById('autoBtn');
+            if (isAutoPlaying) {
+                clearInterval(autoTimer);
+                isAutoPlaying = false;
+                btn.textContent = '▶ 自动播放';
+                btn.classList.remove('playing');
+            } else {
+                isAutoPlaying = true;
+                btn.textContent = '⏸ 暂停';
+                btn.classList.add('playing');
+                autoTimer = setInterval(() => {
+                    if (!isTyping) showQuote(currentIndex + 1);
+                }, 5000);
+            }
+        }
+
+        function createSparkles() {
+            const colors = ['#ffd700', '#ff6b6b', '#00d2ff', '#ff6eb4', '#a66cff'];
+            for (let i = 0; i < 10; i++) {
+                const sparkle = document.createElement('div');
+                sparkle.className = 'sparkle';
+                const size = 4 + Math.random() * 8;
+                sparkle.style.cssText = `
+                    width: ${size}px;
+                    height: ${size}px;
+                    background: ${colors[Math.floor(Math.random() * colors.length)]};
+                    left: ${Math.random() * 100}vw;
+                    top: ${Math.random() * 100}vh;
+                    animation-duration: ${0.5 + Math.random() * 0.8}s;
+                    box-shadow: 0 0 ${size * 2}px ${colors[Math.floor(Math.random() * colors.length)]};
+                `;
+                document.body.appendChild(sparkle);
+                setTimeout(() => sparkle.remove(), 1500);
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                nextQuote();
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                toggleAuto();
+            }
+        });
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let W, H;
+
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        const stars = Array.from({ length: 200 }, () => ({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            r: Math.random() * 2 + 0.3,
+            alpha: Math.random(),
+            speed: 0.003 + Math.random() * 0.008,
+            phase: Math.random() * Math.PI * 2
+        }));
+
+        const shootingStars = [];
+        class ShootingStar {
+            constructor() {
+                this.x = Math.random() * W * 1.5;
+                this.y = Math.random() * H * 0.3;
+                this.len = 50 + Math.random() * 100;
+                this.speed = 8 + Math.random() * 12;
+                this.alpha = 1;
+                this.angle = Math.PI / 4 + (Math.random() - 0.5) * 0.3;
+            }
+            update() {
+                this.x -= Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                this.alpha -= 0.02;
+            }
+            draw() {
+                if (this.alpha <= 0) return;
+                const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.len);
+                g.addColorStop(0, `rgba(255,255,255,${this.alpha})`);
+                g.addColorStop(1, `rgba(255,255,255,0)`);
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
+                ctx.strokeStyle = g;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        function drawStars(time) {
+            ctx.clearRect(0, 0, W, H);
+            stars.forEach(s => {
+                s.alpha = 0.3 + Math.sin(time * s.speed + s.phase) * 0.3;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+                ctx.fill();
+            });
+            if (Math.random() < 0.005) {
+                shootingStars.push(new ShootingStar());
+            }
+            for (let i = shootingStars.length - 1; i >= 0; i--) {
+                shootingStars[i].update();
+                shootingStars[i].draw();
+                if (shootingStars[i].alpha <= 0) {
+                    shootingStars.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(drawStars);
+        }
+        drawStars(0);
+
+        renderDots();
+        showQuote(0);
+        document.getElementById('quoteBox').addEventListener('click', nextQuote);
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const root = path.join(import.meta.dirname, 'deploy-pages');
+const files = fs.readdirSync(root, { recursive: true }).filter(p => fs.statSync(path.join(root, p)).isFile());
+const oversized = files.filter(p => fs.statSync(path.join(root, p)).size > 25 * 1048576);
+const sensitiveNames = files.filter(p => /(^|[\\/])(\.env[^\\/]*|[^\\/]*\.(pem|key|sqlite|db))$/i.test(p));
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const missing = [...html.matchAll(/(?:src|href)="(\/[^"?#]+)/g)].map(m => m[1]).filter(p => !fs.existsSync(path.join(root, p)));
+console.log(JSON.stringify({ files: files.length, totalMiB: Math.round(files.reduce((n,p) => n + fs.statSync(path.join(root,p)).size, 0)/1048576), oversized, sensitiveNames, missingEntryAssets: missing }, null, 2));
+if (oversized.length || sensitiveNames.length || missing.length) process.exitCode = 1;

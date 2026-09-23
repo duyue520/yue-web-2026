@@ -1,0 +1,10 @@
+**
+!requirements.txt
+!start.py
+!alembic.ini
+!server/
+!server/**/*.py
+!migrations/
+!migrations/**/*.py
+!weights/
+!weights/best_model.pth

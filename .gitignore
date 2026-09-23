@@ -1,0 +1,61 @@
+# ===== 依赖与构建产物 =====
+node_modules/
+dist/
+deploy-pages/
+.vite/
+.wrangler/
+.output/
+build/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.test-deps/
+weights/
+checkpoints/
+*.onnx
+*.pth
+
+# ===== 凭据与密钥（绝不入库）=====
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+secrets.json
+credentials*
+*AccessKey*
+_accesskey*
+.netrc
+.git-credentials
+*_setup.run.sh
+*_deploy.run.sh
+_*.run.sh
+
+# ===== 日志与临时文件 =====
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.bak
+*.orig
+
+# ===== 编辑器 =====
+.idea/
+.vscode/
+*.code-workspace
+
+# ===== 大体积素材（体积/版权原因不入库）=====
+frontend/public/music/
+frontend/public/img/wallpaper/dynamic/
+frontend/public/img/wallpaper/dynamic-mobile/

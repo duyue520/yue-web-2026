@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>自律</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .corner {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-color: rgba(0, 210, 255, 0.15);
+            border-style: solid;
+            border-width: 0;
+        }
+        .corner-tl { top: 20px; left: 20px; border-top-width: 2px; border-left-width: 2px; }
+        .corner-tr { top: 20px; right: 20px; border-top-width: 2px; border-right-width: 2px; }
+        .corner-bl { bottom: 20px; left: 20px; border-bottom-width: 2px; border-left-width: 2px; }
+        .corner-br { bottom: 20px; right: 20px; border-bottom-width: 2px; border-right-width: 2px; }
+
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 28px;
+            padding: 45px 40px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(
+                circle at 50% 50%,
+                rgba(0, 210, 255, 0.03) 0%,
+                transparent 50%
+            );
+            animation: rotateGlow 20s linear infinite;
+        }
+        @keyframes rotateGlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 25px;
+        }
+        .header-icon {
+            font-size: 50px;
+            display: block;
+            margin-bottom: 12px;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .header-title {
+            font-size: clamp(24px, 5vw, 34px);
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 4px;
+            text-shadow: 0 0 20px rgba(0, 210, 255, 0.15);
+        }
+        .header-sub {
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 13px;
+            margin-top: 6px;
+            letter-spacing: 4px;
+        }
+
+        .timer-section {
+            position: relative;
+            z-index: 1;
+            margin: 20px 0 25px;
+        }
+        .timer-ring {
+            width: 160px;
+            height: 160px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .timer-ring svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        .timer-ring .bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 4;
+        }
+        .timer-ring .progress {
+            fill: none;
+            stroke: url(#gradient);
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s ease;
+        }
+        .timer-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(32px, 6vw, 44px);
+            font-weight: 700;
+            color: #00d2ff;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+        }
+        .timer-label {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            letter-spacing: 4px;
+            margin-top: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .task-section {
+            position: relative;
+            z-index: 1;
+            text-align: left;
+            margin: 20px 0;
+        }
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .task-title {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            letter-spacing: 3px;
+        }
+        .task-count {
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 12px;
+        }
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        .task-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.06);
+        }
+        .task-item.done {
+            background: rgba(0, 210, 255, 0.06);
+            border-color: rgba(0, 210, 255, 0.12);
+        }
+        .task-item.done .task-text {
+            text-decoration: line-through;
+            color: rgba(255, 255, 255, 0.25);
+        }
+        .task-check {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+            font-size: 10px;
+            color: transparent;
+        }
+        .task-item.done .task-check {
+            background: #00d2ff;
+            border-color: #00d2ff;
+            color: #fff;
+        }
+        .task-text {
+            flex: 1;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .task-emoji { margin-right: 6px; }
+
+        .progress-section {
+            position: relative;
+            z-index: 1;
+            margin: 18px 0;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        .progress-bar {
+            height: 5px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5, #00d2ff);
+            background-size: 200% 100%;
+            border-radius: 10px;
+            transition: width 0.6s ease;
+            width: 0%;
+            animation: progressShine 2s linear infinite;
+        }
+        @keyframes progressShine {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .bottom-row {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 18px;
+        }
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary {
+            background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.25);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 210, 255, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .quote-footer {
+            position: relative;
+            z-index: 1;
+            margin-top: 18px;
+            color: rgba(255, 255, 255, 0.18);
+            font-size: 13px;
+            font-style: italic;
+            min-height: 24px;
+            transition: all 0.5s ease;
+        }
+
+        .confetti-piece {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            animation: confettiFall linear forwards;
+        }
+        @keyframes confettiFall {
+            0% {
+                transform: translateY(-10px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particles"></canvas>
+
+    <div class="container">
+        <div class="corner corner-tl"></div>
+        <div class="corner corner-tr"></div>
+        <div class="corner corner-bl"></div>
+        <div class="corner corner-br"></div>
+
+        <div class="card">
+            <svg style="position:absolute;width:0;height:0;">
+                <defs>
+                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#00d2ff" />
+                        <stop offset="100%" stop-color="#3a7bd5" />
+                    </linearGradient>
+                </defs>
+            </svg>
+
+            <div class="header">
+                <span class="header-icon">⏰</span>
+                <div class="header-title">自律打卡</div>
+                <div class="header-sub">DAILY DISCIPLINE</div>
+            </div>
+
+            <div class="timer-section">
+                <div class="timer-ring">
+                    <svg viewBox="0 0 160 160">
+                        <circle class="bg" cx="80" cy="80" r="68"/>
+                        <circle class="progress" cx="80" cy="80" r="68" 
+                            stroke-dasharray="427.25"
+                            stroke-dashoffset="427.25"
+                            id="progressRing"/>
+                    </svg>
+                    <div class="timer-display" id="timerDisplay">00:00</div>
+                </div>
+                <div class="timer-label">⏱ 今日专注时长</div>
+            </div>
+
+            <div class="task-section">
+                <div class="task-header">
+                    <span class="task-title">📋 今日待办</span>
+                    <span class="task-count" id="taskCount">0/5</span>
+                </div>
+                <div class="task-list">
+                    <div class="task-item" onclick="toggleTask(this)">
+                        <div class="task-check">✓</div>
+                        <span class="task-text"><span class="task-emoji">🌅</span>早起（7:00前起床）</span>
+                    </div>
+                    <div class="task-item" onclick="toggleTask(this)">
+                        <div class="task-check">✓</div>
+                        <span class="task-text"><span class="task-emoji">📖</span>阅读30分钟</span>
+                    </div>
+                    <div class="task-item" onclick="toggleTask(this)">
+                        <div class="task-check">✓</div>
+                        <span class="task-text"><span class="task-emoji">🏃</span>运动30分钟</span>
+                    </div>
+                    <div class="task-item" onclick="toggleTask(this)">
+                        <div class="task-check">✓</div>
+                        <span class="task-text"><span class="task-emoji">💧</span>喝水8杯</span>
+                    </div>
+                    <div class="task-item" onclick="toggleTask(this)">
+                        <div class="task-check">✓</div>
+                        <span class="task-text"><span class="task-emoji">📝</span>学习/工作 2小时</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-header">
+                    <span>今日完成</span>
+                    <span id="progressText">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <div class="bottom-row">
+                <button class="btn btn-primary" onclick="resetTasks()">🔄 重置</button>
+                <button class="btn btn-secondary" onclick="shareStats()">📤 分享进度</button>
+            </div>
+
+            <div class="quote-footer" id="quoteFooter">自律给我自由 💪</div>
+        </div>
+    </div>
+
+    <script>
+        let seconds = 0;
+        let timerInterval = null;
+        const DAY_SECONDS = 24 * 60 * 60;
+
+        function startTimer() {
+            const saved = localStorage.getItem('discipline_seconds');
+            if (saved) {
+                seconds = parseInt(saved);
+                if (seconds > DAY_SECONDS) {
+                    seconds = 0;
+                    localStorage.setItem('discipline_seconds', '0');
+                }
+            }
+            updateTimerDisplay();
+            
+            if (!timerInterval) {
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    if (seconds > DAY_SECONDS) seconds = 0;
+                    localStorage.setItem('discipline_seconds', seconds.toString());
+                    updateTimerDisplay();
+                }, 1000);
+            }
+        }
+
+        function updateTimerDisplay() {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            document.getElementById('timerDisplay').textContent = 
+                `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            const progress = seconds / DAY_SECONDS;
+            const offset = 427.25 * (1 - progress);
+            document.getElementById('progressRing').style.strokeDashoffset = offset;
+        }
+
+        function toggleTask(el) {
+            el.classList.toggle('done');
+            updateProgress();
+            saveTasks();
+            el.style.transform = 'scale(0.97)';
+            setTimeout(() => el.style.transform = '', 150);
+        }
+
+        function updateProgress() {
+            const tasks = document.querySelectorAll('.task-item');
+            const done = document.querySelectorAll('.task-item.done');
+            const percent = tasks.length > 0 ? Math.round((done.length / tasks.length) * 100) : 0;
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = percent + '%';
+            document.getElementById('taskCount').textContent = `${done.length}/${tasks.length}`;
+
+            if (done.length === tasks.length && done.length > 0) {
+                const quotes = [
+                    "🎉 太棒了！今天的你超自律！",
+                    "🌟 自律的你，闪闪发光！",
+                    "💪 坚持就是胜利，你是最棒的！",
+                    "🎯 今日目标全部达成！",
+                    "🔥 你又朝着更好的自己迈进了一步！",
+                    "👑 你是自律之王！"
+                ];
+                document.getElementById('quoteFooter').textContent = 
+                    quotes[Math.floor(Math.random() * quotes.length)];
+                createConfetti();
+            } else if (done.length > 0) {
+                const tips = [
+                    "继续加油，快完成了！💪",
+                    "坚持就是胜利 ✨",
+                    "每天进步一点点 ⭐",
+                    "自律让你更自由 🌟",
+                    "你是最棒的，继续前进！🔥"
+                ];
+                document.getElementById('quoteFooter').textContent = 
+                    tips[Math.floor(Math.random() * tips.length)];
+            }
+        }
+
+        function saveTasks() {
+            const tasks = document.querySelectorAll('.task-item');
+            const states = [];
+            tasks.forEach(t => states.push(t.classList.contains('done')));
+            localStorage.setItem('discipline_tasks', JSON.stringify(states));
+        }
+
+        function loadTasks() {
+            const saved = localStorage.getItem('discipline_tasks');
+            if (saved) {
+                const states = JSON.parse(saved);
+                const tasks = document.querySelectorAll('.task-item');
+                tasks.forEach((t, i) => {
+                    if (states[i]) t.classList.add('done');
+                });
+                updateProgress();
+            }
+        }
+
+        function resetTasks() {
+            if (confirm('确定要重置所有任务吗？')) {
+                document.querySelectorAll('.task-item').forEach(t => t.classList.remove('done'));
+                updateProgress();
+                saveTasks();
+                document.getElementById('quoteFooter').textContent = '自律给我自由 💪';
+            }
+        }
+
+        function shareStats() {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const tasks = document.querySelectorAll('.task-item');
+            const done = document.querySelectorAll('.task-item.done');
+            
+            const text = `📊 我的自律日报\n\n` +
+                `⏱ 专注时长: ${h}小时${m}分\n` +
+                `✅ 完成任务: ${done.length}/${tasks.length}\n` +
+                `💪 ${document.getElementById('progressText').textContent}完成\n\n` +
+                `自律给我自由，一起加油！🔥`;
+
+            if (navigator.share) {
+                navigator.share({ title: '自律打卡', text: text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => {
+                    document.getElementById('quoteFooter').textContent = '📋 已复制到剪贴板！';
+                    setTimeout(() => updateProgress(), 2000);
+                });
+            }
+        }
+
+        function createConfetti() {
+            const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6eb4', '#a66cff', '#00d2ff'];
+            for (let i = 0; i < 60; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                const size = 6 + Math.random() * 8;
+                piece.style.cssText = `
+                    width: ${size}px;
+                    height: ${size * (0.5 + Math.random())}px;
+                    background: ${colors[Math.floor(Math.random() * colors.length)]};
+                    left: ${Math.random() * 100}vw;
+                    top: -20px;
+                    border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+                    animation-duration: ${2 + Math.random() * 3}s;
+                    animation-delay: ${Math.random() * 0.5}s;
+                    transform: rotate(${Math.random() * 360}deg);
+                `;
+                document.body.appendChild(piece);
+                setTimeout(() => piece.remove(), 5000);
+            }
+        }
+
+        const canvas = document.getElementById('particles');
+        const ctx = canvas.getContext('2d');
+        let W, H;
+
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * W;
+                this.y = Math.random() * H;
+                this.r = Math.random() * 2 + 0.5;
+                this.dx = (Math.random() - 0.5) * 0.4;
+                this.dy = (Math.random() - 0.5) * 0.4;
+                this.alpha = Math.random() * 0.4 + 0.1;
+                this.phase = Math.random() * Math.PI * 2;
+            }
+            draw(time) {
+                this.x += this.dx;
+                this.y += this.dy;
+                if (this.x < 0 || this.x > W) this.dx *= -1;
+                if (this.y < 0 || this.y > H) this.dy *= -1;
+                
+                const blink = 0.5 + Math.sin(time * 0.002 + this.phase) * 0.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(100, 200, 255, ${this.alpha * blink})`;
+                ctx.fill();
+            }
+        }
+
+        const particles = Array.from({ length: 100 }, () => new Particle());
+
+        function drawParticles(time) {
+            ctx.clearRect(0, 0, W, H);
+            particles.forEach(p => p.draw(time));
+            
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(100, 200, 255, ${0.08 * (1 - d / 120)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(drawParticles);
+        }
+        drawParticles(0);
+
+        startTimer();
+        loadTasks();
+    </script>
+</body>
+</html>

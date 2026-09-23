@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>人文 · 云游校园 — 湖南人文科技学院 HUHST</title>
+<meta name="description" content="湖南人文科技学院（HUHST）三维云游校园：OSM 校园边界 + 卫星影像估算建筑体量，浏览器内直接漫游。">
+<meta name="theme-color" content="#f3eee0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%235c7f52'/%3E%3Ctext%20x='32'%20y='44'%20font-size='36'%20text-anchor='middle'%20fill='%23f5f1e6'%20font-family='serif'%3E%E4%BA%BA%3C/text%3E%3C/svg%3E">
+<!--
+  ══════════════════════════════════════════════════════════════════
+  HUHST 云游校园 · UI 骨架（本文件 + /src/style.css 由 UI 侧维护）
+  main.js（/src/main.js，ES Module，import "./style.css"）契约：
+
+  · #scene        <canvas>：three.js 渲染画布（尺寸由 CSS 控制，需自行监听 resize）
+  · #labels       画布上方标注层（pointer-events:none），往内追加
+                  <div class="label">名称</div>，用 left/top 定位（像素）
+  · #search       搜索输入框（监听 input 过滤列表）
+  · #place-list   地点列表容器；建议子元素：
+                  <button class="place-item [active]" data-id="…">
+                    <i class="place-dot teaching|living|sport|landmark"></i>
+                    <span class="place-text">
+                      <span class="place-name">名称</span>
+                      <span class="place-sub">分类 · 简述</span>
+                    </span>
+                  </button>
+  · #detail       详情面板（初始为校园概览摘要，选中地点后整体替换内容；
+                  可复用 .detail-head/.detail-title/.detail-meta/.detail-body/.detail-foot）
+  · #home-btn #top-btn #tour-btn #labels-btn #day-btn #evidence-btn
+                  视角/模式控件（切换态请设 aria-pressed="true"）
+  · #status       顶部状态文字（如“资料校准版 / 加载中… / 出错信息”）
+  · #loading      加载遮罩：显示时移除 [hidden]，完成后加上
+  · [data-filter] 分类筛选按钮：all|teaching|living|sport|landmark
+  · #sources-btn  打开 dialog#sources-dialog（showModal()），#sources-close 关闭
+  · 分类色 CSS 变量：--cat-teaching / --cat-living / --cat-sport / --cat-landmark
+  · 昼夜模式：day-btn 可给 <body> 加 .night（界面配色已适配）
+  ══════════════════════════════════════════════════════════════════
+-->
+  <script type="module" crossorigin src="/campus/assets/index-DuzB9Gce.js"></script>
+  <link rel="stylesheet" crossorigin href="/campus/assets/index-BZEbH-Gz.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">人</div>
+      <div class="brand-text">
+        <span class="brand-title">人文 · 云游校园</span>
+        <span class="brand-sub">HUHST · 湖南人文科技学院</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="status" class="status-chip"><i class="status-dot" aria-hidden="true"></i>资料校准版</span>
+      <button id="sources-btn" class="btn btn-ghost" type="button">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5"/><path d="M12 11.2v4.6"/><path d="M12 8.1v.2"/>
+        </svg>
+        <span class="btn-label">资料来源</span>
+      </button>
+      <button id="tour-btn" class="btn btn-primary" type="button" title="自动游览校园全景">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <path d="M8 5.5v13l10-6.5z" fill="currentColor"/>
+        </svg>
+        <span class="btn-label">云游校园</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- ── 左侧：搜索 / 分类 / 地点列表 / 详情 ─────────────────── -->
+    <aside class="sidebar">
+      <div class="search-box" role="search">
+        <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/>
+        </svg>
+        <input id="search" type="search" placeholder="搜索校园地点，如「图书馆」…" autocomplete="off" spellcheck="false" aria-label="搜索校园地点">
+      </div>
+
+      <div class="filter-row" role="group" aria-label="按分类筛选">
+        <button class="filter-btn active" type="button" data-filter="all" aria-pressed="true">全部</button>
+        <button class="filter-btn" type="button" data-filter="teaching" aria-pressed="false">教学</button>
+        <button class="filter-btn" type="button" data-filter="living" aria-pressed="false">生活</button>
+        <button class="filter-btn" type="button" data-filter="sport" aria-pressed="false">运动</button>
+        <button class="filter-btn" type="button" data-filter="landmark" aria-pressed="false">地标</button>
+      </div>
+
+      <div id="place-list" class="place-list" aria-label="校园地点列表">
+        <div class="empty-hint">正在载入地点数据…</div>
+      </div>
+
+      <section id="detail" class="detail" aria-live="polite">
+        <header class="detail-head">
+          <h2 class="detail-title">校园概览</h2>
+          <span class="detail-meta">娄底 · 湖南 · HUHST</span>
+        </header>
+        <div class="detail-body">
+          <p>从教学楼到运动场，从一条林荫路到下一处校园风景，在三维视角中探索湖南人文科技学院。</p>
+          <p>选择校园地点，开启你的探索。建筑体量依据影像估算，场所名称与位置以校方实际信息为准。</p>
+        </div>
+        <p class="detail-foot">校园边界来自 OSM · 建筑体量为影像估算，非测绘模型</p>
+      </section>
+    </aside>
+
+    <!-- ── 主舞台：三维画布 + 标注 + 工具 + 角标 ───────────────── -->
+    <main class="stage">
+      <canvas id="scene" aria-label="校园三维视图"></canvas>
+      <div id="labels" class="labels-layer" aria-hidden="true"></div>
+
+      <div id="loading" class="loading-overlay">
+        <div class="loading-card">
+          <span class="spinner" aria-hidden="true"></span>
+          <p class="loading-title">正在构建校园三维场景…</p>
+          <p class="loading-sub">校园边界来自 OSM · 建筑体量为影像估算，非测绘模型</p>
+        </div>
+      </div>
+
+      <div class="view-toolbar" role="toolbar" aria-label="视角与显示控制">
+        <button id="home-btn" class="tool-btn" type="button" title="复位视角" aria-label="复位视角">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.8 9.3V20h12.4V9.3"/>
+          </svg>
+        </button>
+        <button id="top-btn" class="tool-btn" type="button" title="俯视全校" aria-label="俯视全校">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><circle cx="12" cy="12" r="2.4"/>
+          </svg>
+        </button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button id="labels-btn" class="tool-btn" type="button" title="地点标注" aria-label="地点标注开关" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7L20.5 12l-8.3 8.3z"/><circle cx="8" cy="8" r="1.5"/>
+          </svg>
+        </button>
+        <button id="day-btn" class="tool-btn" type="button" title="昼夜切换" aria-label="昼夜切换" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+        <button id="evidence-btn" class="tool-btn" type="button" title="证据对照（显示估算值）" aria-label="证据对照开关" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="stage-corner">
+        <div class="legend" aria-label="分类图例">
+          <span class="legend-item"><i class="dot teaching"></i>教学</span>
+          <span class="legend-item"><i class="dot living"></i>生活</span>
+          <span class="legend-item"><i class="dot sport"></i>运动</span>
+          <span class="legend-item"><i class="dot landmark"></i>地标</span>
+        </div>
+        <p class="source-note">校园边界来自 OSM · 建筑体量为影像估算，非测绘模型</p>
+      </div>
+
+      <noscript>
+        <div class="noscript-tip">需要启用 JavaScript 才能加载三维校园场景。</div>
+      </noscript>
+    </main>
+  </div>
+
+  <!-- ── 资料来源说明 ──────────────────────────────────────────── -->
+  <dialog id="sources-dialog" class="sources-dialog">
+    <header class="dialog-head">
+      <h2>资料来源与说明</h2>
+      <button id="sources-close" class="dialog-close" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18"/>
+        </svg>
+      </button>
+    </header>
+    <div class="dialog-body">
+      <div class="source-row">
+        <span class="src-badge">OSM</span>
+        <p>校园边界来自 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> 贡献者数据（© OpenStreetMap contributors，ODbL 许可）。边界依据公开数据绘制，并非权属界线。</p>
+      </div>
+      <div class="source-row">
+        <span class="src-badge">影像</span>
+        <p>建筑轮廓与楼层高度参考<b>公开卫星影像切片</b>人工估算，仅作游览示意，<b>非测绘模型</b>，不可用于规划或工程用途。</p>
+      </div>
+      <div class="source-row">
+        <span class="src-badge">照片</span>
+        <p>「实景照片」条目与地标对照缩略图来自<b>湖南人文科技学院官网图库</b>（<a href="https://www.huhst.edu.cn/xxjs/xyfg/xxjz.htm" target="_blank" rel="noopener noreferrer">学校建筑</a> · <a href="https://www.huhst.edu.cn/xxjs/xyfg/xxfg.htm" target="_blank" rel="noopener noreferrer">校园风光</a> · <a href="https://www.huhst.edu.cn/xxjs/xyfg/jxss.htm" target="_blank" rel="noopener noreferrer">教学设施</a>）与<a href="https://www.huhst.edu.cn/tsg/info/1022/3086.htm" target="_blank" rel="noopener noreferrer">图书馆馆方页面</a>，另有若干 <b>2026-07 现场照片</b>（来源为公开短视频截图，画面带相机水印）。图片版权归原权利人；仅作外观参考，拍摄时间未核实，位置未与三维场景对应。</p>
+      </div>
+      <div class="source-row">
+        <span class="src-badge">楼名</span>
+        <p>有相当数量的体量可与一份<b>第三方校园 3D 地图</b>（<a href="https://huhst-map.maozi.io/" target="_blank" rel="noopener noreferrer">huhst-map.maozi.io</a>，基于高德地图）的楼栋点位对上，据此采用其楼名，点位于侧栏显示<b>距轮廓的偏移量</b>；该点位为社区标注、<b>非测绘成果</b>，坐标原为 GCJ-02 火星坐标，已反算为 WGS-84 后换算。其余体量仍按方位与形态中性命名。两类名称<b>均未与校方正式命名逐一核实</b>；标有「参」字的为尚未落到轮廓上的第三方点位。</p>
+      </div>
+      <div class="source-row">
+        <span class="src-badge">资料</span>
+        <p>场所分类与背景依据<b>公开校园资料</b>整理校准；与实际教学安排无关。</p>
+      </div>
+      <div class="source-row">
+        <span class="src-badge">渲染</span>
+        <p>三维场景由 <b>Three.js</b> 在浏览器本地渲染，无需安装插件。</p>
+      </div>
+      <p class="dialog-note">提示：右上「证据」按钮可在标注中显示楼层/高度估算值（以 <b>≈</b> 标记），便于与实际对照。</p>
+    </div>
+    <footer class="dialog-foot">
+      <p>校园边界来自 OSM · 建筑体量为影像估算，非测绘模型</p>
+    </footer>
+  </dialog>
+
+</body>
+</html>

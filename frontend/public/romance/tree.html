@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>圣诞快乐 🎄</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #0a0a1a;
+            font-family: 'Arial', sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        .text {
+            position: absolute;
+            bottom: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ff6b6b;
+            font-size: clamp(20px, 4vw, 48px);
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+            letter-spacing: 4px;
+        }
+        @keyframes glow {
+            from { text-shadow: 0 0 20px rgba(255, 107, 107, 0.5); }
+            to { text-shadow: 0 0 40px rgba(255, 107, 107, 0.9), 0 0 60px rgba(255, 200, 50, 0.4); }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="text">🎄 Merry Christmas 🎄</div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let W, H;
+
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // 星星类
+        class Star {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * W;
+                this.y = Math.random() * H;
+                this.size = Math.random() * 2 + 0.5;
+                this.alpha = Math.random();
+                this.speed = 0.005 + Math.random() * 0.01;
+            }
+            draw() {
+                this.alpha += this.speed;
+                if (this.alpha > 1) this.alpha = 0;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                ctx.fill();
+            }
+        }
+
+        // 雪花粒子
+        class Snowflake {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * W;
+                this.y = -10;
+                this.size = Math.random() * 4 + 1;
+                this.speed = 1 + Math.random() * 2;
+                this.wobble = Math.random() * 0.5;
+                this.offset = Math.random() * 100;
+            }
+            draw() {
+                this.y += this.speed;
+                this.x += Math.sin(this.y * 0.02 + this.offset) * this.wobble;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + Math.random() * 0.4})`;
+                ctx.fill();
+                if (this.y > H + 10) this.reset();
+            }
+        }
+
+        // 灯光粒子（装饰树）
+        class Light {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = 4 + Math.random() * 3;
+                this.alpha = Math.random();
+                this.speed = 0.02 + Math.random() * 0.03;
+                this.glow = 0;
+            }
+            draw() {
+                this.alpha += this.speed;
+                if (this.alpha > 1 || this.alpha < 0.3) this.speed *= -1;
+                this.glow = Math.sin(Date.now() * 0.003 + this.x) * 5 + 10;
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size + this.glow * 0.1, 0, Math.PI * 2);
+                ctx.fillStyle = this.color.replace('1)', `${this.alpha})`);
+                ctx.fill();
+                
+                // 发光
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size + this.glow * 0.3, 0, Math.PI * 2);
+                ctx.fillStyle = this.color.replace('1)', `${this.alpha * 0.2})`);
+                ctx.fill();
+            }
+        }
+
+        // 创建圣诞树
+        function createTree() {
+            const cx = W / 2;
+            const baseY = H * 0.85;
+            const maxH = H * 0.6;
+            const maxW = W * 0.3;
+            const lights = [];
+            const colors = [
+                'rgba(255, 50, 50, 1)', 'rgba(50, 200, 255, 1)',
+                'rgba(255, 200, 50, 1)', 'rgba(50, 255, 100, 1)',
+                'rgba(255, 100, 200, 1)', 'rgba(200, 150, 255, 1)'
+            ];
+
+            // 绘制三角形层（树冠）
+            const layers = [
+                { y: 0.1, w: 0.2, color: '#0d5c0d' },
+                { y: 0.25, w: 0.4, color: '#0f6f0f' },
+                { y: 0.4, w: 0.55, color: '#118011' },
+                { y: 0.55, w: 0.7, color: '#149214' },
+                { y: 0.7, w: 0.85, color: '#16a316' },
+                { y: 0.85, w: 1.0, color: '#19b419' }
+            ];
+
+            // 绘制树干
+            ctx.fillStyle = '#3a2010';
+            ctx.fillRect(cx - 15, baseY - maxH * 0.05, 30, maxH * 0.1);
+
+            // 绘制树冠
+            layers.forEach(layer => {
+                const y = baseY - maxH * layer.y;
+                const w = maxW * layer.w;
+                ctx.beginPath();
+                ctx.moveTo(cx - w, y + maxH * 0.05);
+                ctx.lineTo(cx + w, y + maxH * 0.05);
+                ctx.lineTo(cx, y - maxH * 0.08);
+                ctx.closePath();
+                ctx.fillStyle = layer.color;
+                ctx.fill();
+                
+                // 随机装饰灯
+                for (let i = 0; i < 8; i++) {
+                    const t = Math.random();
+                    const lx = cx - w * (1 - t) + w * (1 - t) * 2 * Math.random();
+                    const ly = y + maxH * 0.02 - Math.random() * maxH * 0.06;
+                    if (Math.random() > 0.4) {
+                        lights.push(new Light(lx, ly, colors[Math.floor(Math.random() * colors.length)]));
+                    }
+                }
+            });
+
+            // 树顶星星
+            const starY = baseY - maxH - 20;
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd700';
+            
+            // 星星光芒
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
+                const len = 15 + Math.sin(Date.now() * 0.005 + i) * 5;
+                ctx.beginPath();
+                ctx.moveTo(cx, starY);
+                ctx.lineTo(cx + Math.cos(angle) * len, starY + Math.sin(angle) * len);
+                ctx.strokeStyle = 'rgba(255, 215, 0, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+
+            // 星形
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
+                const r = 12;
+                const x = cx + Math.cos(angle) * r;
+                const y = starY + Math.sin(angle) * r;
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ffd700';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            return lights;
+        }
+
+        // 主循环
+        const stars = Array.from({ length: 100 }, () => new Star());
+        const snowflakes = Array.from({ length: 50 }, () => new Snowflake());
+        let treeLights = [];
+
+        function draw() {
+            ctx.fillStyle = 'rgba(10, 10, 26, 1)';
+            ctx.fillRect(0, 0, W, H);
+
+            // 背景星星
+            stars.forEach(s => s.draw());
+
+            // 绘制树（每次重绘）
+            if (treeLights.length === 0) {
+                treeLights = createTree();
+            }
+
+            // 树上的灯光
+            treeLights.forEach(l => l.draw());
+
+            // 雪花
+            snowflakes.forEach(s => s.draw());
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+
+        // 窗口变化时重置树灯
+        window.addEventListener('resize', () => {
+            resize();
+            treeLights = [];
+        });
+    </script>
+</body>
+</html>

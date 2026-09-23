@@ -1,0 +1,93 @@
+name: Build standalone binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            artifact_name: tban-cat-macos-arm64
+            binary_name: tban-cat
+            asset_name: tban-cat-macos-arm64
+          - os: macos-26-intel
+            artifact_name: tban-cat-macos-intel
+            binary_name: tban-cat
+            asset_name: tban-cat-macos-intel
+          - os: windows-latest
+            artifact_name: tban-cat-windows
+            binary_name: tban-cat.exe
+            asset_name: tban-cat-windows.exe
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: python -m pip install ".[build]"
+
+      - name: Build macOS binary
+        if: runner.os != 'Windows'
+        run: >
+          python -m PyInstaller
+          --onefile
+          --name tban-cat
+          --add-data "cat.GIF:."
+          --add-data "music.mp3:."
+          main.py
+
+      - name: Build Windows binary
+        if: runner.os == 'Windows'
+        run: >
+          python -m PyInstaller
+          --onefile
+          --name tban-cat
+          --add-data "cat.GIF;."
+          --add-data "music.mp3;."
+          main.py
+
+      - name: Rename release asset
+        run: python -c "from pathlib import Path; Path('dist/${{ matrix.binary_name }}').rename('dist/${{ matrix.asset_name }}')"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.asset_name }}
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" artifacts/*/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" artifacts/*/* --title "$GITHUB_REF_NAME" --generate-notes --repo "$GITHUB_REPOSITORY"
+          fi

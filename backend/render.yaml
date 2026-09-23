@@ -1,0 +1,17 @@
+# Conditional candidate only: no service is created by this file.
+services:
+  - type: web
+    name: leaf-personal-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://duyue520.github.io
+      - key: PORT
+        value: '7860'
