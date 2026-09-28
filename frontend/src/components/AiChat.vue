@@ -103,7 +103,6 @@ export default {
       model: 'doubao',
       models: [
         { id: 'doubao', label: '豆包', icon: 'mdi-leaf', enabled: false, desc: '豆包大模型' },
-        { id: 'chatgpt', label: 'ChatGPT', icon: 'mdi-robot-outline', enabled: false, desc: 'GPT 系列' },
       ],
       status: { enabled: false, name: '越的分身' },
       typed: '',
