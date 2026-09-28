@@ -47,6 +47,36 @@ from ..ratelimit import limit
 
 router = APIRouter(tags=["AI网关"])
 
+# 常驻上游连接池：避免每次请求重建 TLS（豆包握手 ~0.3s）；h2 可用时自动启用 HTTP/2
+_shared_client = None
+_shared_lock = threading.Lock()
+
+
+def _shared_cm():
+    class _CM:
+        async def __aenter__(self):
+            global _shared_client
+            if _shared_client is None:
+                with _shared_lock:
+                    if _shared_client is None:
+                        try:
+                            import h2  # noqa: F401
+                            http2 = True
+                        except ImportError:
+                            http2 = False
+                        _shared_client = httpx.AsyncClient(
+                            http2=http2,
+                            follow_redirects=True,
+                            timeout=httpx.Timeout(GW_TIMEOUT, connect=10),
+                            limits=httpx.Limits(max_keepalive_connections=20,
+                                                keepalive_expiry=300),
+                        )
+            return _shared_client
+
+        async def __aexit__(self, *exc):
+            return False
+    return _CM()
+
 GW_TIMEOUT = float(os.environ.get("AI_TIMEOUT") or "120")
 ADMIN_TOKEN = (os.environ.get("AI_GW_ADMIN_TOKEN") or "").strip()
 KEY_PREFIX = "sk-wb-"
@@ -393,7 +423,7 @@ async def doubao_chat_stream(sid, messages):
     headers = await _doubao_headers(sid)
     conv_id = ""
     got_piece = [False]
-    async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(GW_TIMEOUT, connect=15)) as client:
+    async with _shared_cm() as client:
         async with client.stream(
                 "POST", "https://www.doubao.com/samantha/chat/completion",
                 params=_doubao_query(), headers=headers, json=body) as r:
@@ -468,7 +498,7 @@ async def doubao_chat_stream(sid, messages):
     # 结束后清理会话，避免出现在账号的对话列表里
     if conv_id:
         try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as c:
+            async with _shared_cm() as c:
                 await c.post("https://www.doubao.com/samantha/thread/delete",
                              params=_doubao_query(), headers=headers,
                              json={"conversation_id": conv_id})
@@ -485,7 +515,7 @@ async def openai_chat_stream(base, key, model, messages, extra=None):
     if isinstance(extra.get("temperature"), (int, float)):
         payload["temperature"] = extra["temperature"]
     headers = {"Authorization": "Bearer %s" % key, "Content-Type": "application/json"}
-    async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(GW_TIMEOUT, connect=15)) as client:
+    async with _shared_cm() as client:
         async with client.stream("POST", "%s/chat/completions" % base,
                                  headers=headers, json=payload) as r:
             if r.status_code != 200:
