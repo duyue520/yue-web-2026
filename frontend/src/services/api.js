@@ -3,12 +3,9 @@
  */
 // 智能选择后端
 function getApiBase() {
+  // 永远走同源相对路径 /api（由 nginx 反代到本机后端）
+  // 不在任何前端产物里出现源站 IP / 明文 HTTP 地址，防止源站被绕过 HTTPS 直连
   if (import.meta?.env?.VITE_API_BASE) return import.meta.env.VITE_API_BASE;
-  const host = window.location.hostname;
-  // 腾讯云 CDN：需要完整后端地址
-  if (host.includes('tcloudbaseapp.com')) {
-    return 'http://119.91.113.191:8000';
-  }
   return '';  // Vite 代理 /api → localhost:8000
 }
 const API_BASE = getApiBase();
@@ -248,6 +245,23 @@ export default {
   },
   async musicLyric(id) {
     return await request(`/api/music/lyric?id=${id}`);
+  },
+
+  // ========== AI 网关（OpenAI 兼容） ==========
+  async aiGwOverview() {
+    return await request('/api/ai-gw/overview');
+  },
+  async aiGwCreateKey(name) {
+    return await request('/api/ai-gw/keys', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+  async aiGwDeleteKey(id) {
+    return await request('/api/ai-gw/keys/' + id, { method: 'DELETE' });
+  },
+  async aiGwToggleKey(id) {
+    return await request('/api/ai-gw/keys/' + id + '/toggle', { method: 'POST' });
   },
 
   // ========== 健康检查 ==========

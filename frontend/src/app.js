@@ -2,7 +2,7 @@ import homeright from '../src/components/hoemright.vue';
 import tab1 from './components/tabs/tab1.vue';
 import tab2 from './components/tabs/tab2.vue';
 import loader from './components/loader.vue';
-import polarchart from './components/polarchart.vue';
+
 import LoginGate from './components/disease/LoginGate.vue';
 import MusicDialog from './components/MusicDialog.vue';
 import ParticleLayer from './components/ParticleLayer.vue';
@@ -12,7 +12,10 @@ const DiseaseMain = defineAsyncComponent(() => import('./components/disease/Dise
 const ProfileDialog = defineAsyncComponent(() => import('./components/ProfileDialog.vue'));
 const Guestbook = defineAsyncComponent(() => import('./components/Guestbook.vue'));
 const BlogPage = defineAsyncComponent(() => import('./components/BlogPage.vue'));
+const polarchart = defineAsyncComponent(() => import('./components/polarchart.vue'));
 const ApproveDialog = defineAsyncComponent(() => import('./components/ApproveDialog.vue'));
+const AiChat = defineAsyncComponent(() => import('./components/AiChat.vue'));
+const AiGateway = defineAsyncComponent(() => import('./components/AiGateway.vue'));
 import config from './config.js';
 import { getCookie } from './utils/cookieUtils.js';
 import { setMeta,getFormattedTime,getFormattedDate,dataConsole } from './utils/common.js';
@@ -21,6 +24,7 @@ import api from './services/api.js'
 
 export default {
   components: {
+    AiChat,AiGateway,
     tab1,tab2,loader,homeright,polarchart,DiseaseMain,LoginGate,ProfileDialog,Guestbook,MusicDialog,BlogPage,ParticleLayer,ApproveDialog,ApproveDialog
   },
   setup() {
@@ -38,6 +42,7 @@ export default {
       dialog2: false,
       personalizedtags: null,
       videosrc: '',
+      chartReady: false,
       ismusicplayer: false,
       isPlaying:false,
       playlistIndex: 0,
@@ -115,7 +120,7 @@ export default {
 
           // 设置超时机制：1.5秒（超过就不等图片了）
           const timeoutPromise = new Promise((res) => {
-            setTimeout(res, 1500);
+            setTimeout(res, 800);
           });
           
           // 等待所有图片加载完成或超时
@@ -124,7 +129,7 @@ export default {
               const img = new Image();
               img.onload = done;
               img.onerror = done;                // 背景图失败也要放行
-              setTimeout(done, 2500);            // 背景图硬超时兜底
+              setTimeout(done, 1200);           // 背景图硬超时兜底
               img.src = imageurl;
             }else{
               // 视频壁纸已改为首屏后延迟加载，这里直接放行，不再等它
@@ -154,13 +159,13 @@ export default {
             api.logout();
           }
         }
+        // 视频壁纸立即挂载：浏览器先渲染 poster（约 100KB 静态图，秒出画面），视频并行下载
+        if (this._pendingVideo && !this.videosrc) this.videosrc = this._pendingVideo;
         setTimeout(() => {
           this.isloading = false;
-          // 首屏 UI 出来后再拉视频壁纸，避免 1.5MB 视频阻塞首屏
-          if (this._pendingVideo && !this.videosrc) {
-            setTimeout(() => { this.videosrc = this._pendingVideo; }, 500);
-          }
-        }, "300");
+          // 首屏稳定后再渲染重组件（雷达图 + 粒子层，合计约 250KB JS）
+          setTimeout(() => { this.chartReady = true; }, 900);
+        }, "180");
       }).catch((err) => {
         console.error('加载失败:', err);
         this.isloading = false;
@@ -239,6 +244,11 @@ export default {
   },
   
   methods: {
+    // 诊断页追问：带着病害上下文打开越的分身
+    onAskAi(payload) {
+      const ai = this.$refs.aiChat;
+      if (ai) ai.openWith({ context: payload?.context || '', preset: payload?.preset || '' });
+    },
     getCookie,setMeta,getFormattedTime,getFormattedDate,dataConsole,
 
     setMainProperty(imageurl){
@@ -319,12 +329,15 @@ export default {
         } else {
           this._pendingBlog = true;
         }
+      } else if (window.location.hash === '#aigw') {
+        this.openAiGateway();
       }
     },
     onGateDone(result) {
       this.isUserLoggedIn = result.loggedIn;
       if (this._pendingDisease) { this._pendingDisease = false; this.openDiseaseDialog(); }
       if (this._pendingBlog) { this._pendingBlog = false; this.openBlogPage(); }
+      if (window.location.hash === '#aigw') { this.openAiGateway(); }
     },
     onProfileUpdated(data) {
       if (data.username) {
@@ -361,7 +374,14 @@ export default {
       } else if (action === 'blog') {
         window.location.hash = '#blog';
         this.openBlogPage();
+      } else if (action === 'aigw') {
+        window.location.hash = '#aigw';
+        this.openAiGateway();
       }
+    },
+    async openAiGateway() {
+      const c = await this.waitRef('aiGateway');
+      if (c && c.open) c.open();
     },
     handleCancel(){
       this.dialog1 = false;

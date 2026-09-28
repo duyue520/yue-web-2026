@@ -6,20 +6,28 @@
         <div>
           <v-row align="center">
             <v-col cols="12" md="8">
-              <!-- 音乐迷你条 -->
-              <v-card v-if="currentSong && currentSong.title" class="music-mini mb-2" variant="tonal" :style="xs||sm?{'display':'none'}:{}">
-                <div class="d-flex align-center pa-2">
-                  <v-avatar size="36" rounded="lg" class="mr-2"><v-img :src="currentSong.pic" cover /></v-avatar>
+              <!-- ★ 音乐中心：未播放时是醒目入口，播放中是迷你控制条（移动端同样可见） -->
+              <v-card class="music-hub mb-2" variant="flat" @click="$emit('openPlayer')">
+                <div v-if="musicPlaying && currentSong && currentSong.title" class="d-flex align-center pa-2">
+                  <v-avatar size="44" rounded="lg" class="mr-2 music-mini-cover"><v-img :src="currentSong.pic" cover /></v-avatar>
                   <div class="flex-grow-1" style="min-width:0">
                     <div class="text-body-2 text-truncate font-weight-bold">{{ currentSong.title }}</div>
                     <div class="text-caption text-grey text-truncate">{{ currentSong.author }}</div>
                   </div>
-                  <v-btn icon size="36" variant="text" @click="$emit('musicPrev')"><v-icon size="24">mdi-skip-previous</v-icon></v-btn>
-                  <v-btn icon size="48" variant="text" color="green-darken-2" @click="$emit('musicToggle')">
-                    <v-icon size="36">{{ musicPlaying ? 'mdi-pause-circle' : 'mdi-play-circle' }}</v-icon>
+                  <v-btn icon size="42" variant="text" @click.stop="$emit('musicPrev')"><v-icon size="27">mdi-skip-previous</v-icon></v-btn>
+                  <v-btn icon size="54" variant="text" color="green-darken-2" @click.stop="$emit('musicToggle')">
+                    <v-icon size="42">{{ musicPlaying ? 'mdi-pause-circle' : 'mdi-play-circle' }}</v-icon>
                   </v-btn>
-                  <v-btn icon size="36" variant="text" @click="$emit('musicNext')"><v-icon size="24">mdi-skip-next</v-icon></v-btn>
-                  <v-btn icon size="32" variant="text" class="ml-1" @click="$emit('openPlayer')"><v-icon size="20">mdi-playlist-music</v-icon></v-btn>
+                  <v-btn icon size="42" variant="text" @click.stop="$emit('musicNext')"><v-icon size="27">mdi-skip-next</v-icon></v-btn>
+                  <v-btn icon size="42" variant="text" class="ml-1" @click.stop="$emit('openPlayer')"><v-icon size="24">mdi-playlist-music</v-icon></v-btn>
+                </div>
+                <div v-else class="music-entry">
+                  <div class="music-entry-icon"><v-icon size="34">mdi-music-note-plus</v-icon></div>
+                  <div class="music-entry-text">
+                    <div class="music-entry-title">在线音乐</div>
+                    <div class="music-entry-sub">搜全网歌曲 · 一键播放</div>
+                  </div>
+                  <v-icon size="28" class="music-entry-arrow">mdi-chevron-right</v-icon>
                 </div>
               </v-card>
               <typewriter class="ma-3 d-flex align-center justify-center" style="min-height: 200px;"></typewriter>

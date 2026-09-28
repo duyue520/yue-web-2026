@@ -10,6 +10,9 @@
     <!-- 登录门禁 -->
     <LoginGate v-if="!isloading && showLoginGate" :avatar="configdata.avatar" @done="onGateDone" />
 
+    <!-- 越的分身：呼吸光点 + 侧滑对话（全局可用） -->
+    <AiChat v-if="!isloading" ref="aiChat" :avatar="configdata.avatar" />
+
     <!-- 备案信息（首页可见，链接工信部） -->
     <div v-show="!isloading && !isClearScreen" class="wb-icp">
       <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
@@ -20,12 +23,13 @@
     </div>
 
     <video autoplay loop muted playsinline class="video-bg" id="bg-video" ref="VdPlayer" :src="videosrc"
+    :poster="videosrc ? videosrc.replace(/\.(webm|mp4)$/i, '-poster.webp') : ''"
     :style="xs?{height: '100%',width: '100%',top: '0',left:'0'}:(sm?{height: '98%',width: '98%',top: '1%',left:' 1%','border-radius': '16px'}:{height: '96.6%',width: '99%',top: '1.7%',left:' 0.5%','border-radius': '16px',})">
         <!-- 视频源由 <video> 的 :src 直接绑定：改 source 子元素不会触发重新加载 -->
     </video>
 
     <!-- ThreeUI 风格粒子星尘层（桌面端，懒加载 three） -->
-    <ParticleLayer />
+    <ParticleLayer v-if="chartReady" />
 
     <div class="floating-switch-container">
       <v-switch
@@ -59,7 +63,7 @@
                       <span ref="audioauthor" class="musicplayer-text"
                         style="bottom: 1.4rem;"
                       >{{ musicinfo?.[0]?.author }}</span>
-                      <audio v-show="false" ref="audioPlayer" :src="musicinfo?.[0]?.url"
+                      <audio v-show="false" ref="audioPlayer" id="wb-audio" :src="musicinfo?.[0]?.url"
                       preload="auto" crossorigin="anonymous"
                       @waiting="onWaiting"
                       @canplay="onCanPlay"
@@ -89,29 +93,36 @@
                 </v-card>
 
                 <div class="leleo-left-chart">
-                    <polarchart :style="xs||sm?{'height':'210px'}:{'height':'270px'}"/>
+                    <polarchart v-if="chartReady" :style="xs||sm?{'height':'210px'}:{'height':'270px'}"/>
+                    <div v-else class="wb-lazy-slot"><v-progress-circular indeterminate size="22" width="2"></v-progress-circular></div>
                 </div>
 
                 <v-container class="leleo-left-socialIconsContainer">
                     <v-row align="center" justify="center">
                     <v-col class="pa-1" cols="auto" v-for="item in socialPlatformIcons">
-                        <v-btn :size="xs?25:33" variant="tonal" color="var(--leleo-vcard-color)"
+                        <!-- 赞赏：带文字标签，让访客一眼知道这是赞赏入口 -->
+                        <v-btn v-if="item.action === 'approve'"
+                        :size="xs?34:40" variant="flat" rounded="pill"
+                        class="ma-1 leleo-approve-btn"
+                        prepend-icon="mdi-heart"
+                        @click="$refs.approveDialog.open()">
+                        {{ item.label || '赞赏' }}
+                        </v-btn>
+                        <v-btn v-else :size="xs?25:33" variant="tonal" color="var(--leleo-vcard-color)"
                         class="ma-1 leleo-social-bticon"
                         icon
-                        :href="item.link || undefined" :target="item.link ? '_blank' : undefined"
-                        @click="item.action==='approve' && $refs.approveDialog.open()"
-                        >
+                        :href="item.link || undefined" :target="item.link ? '_blank' : undefined">
                     <v-icon :icon=item.icon :size="xs?20:25" class="social-bticon-icon"></v-icon></v-btn>
                     </v-col>
                     </v-row>
 
                     <v-row align="center" justify="center" class="setting">
                     <v-col class="ma-1" cols="auto">
-                        <v-fab style="width: 2.5rem;height: 2.5rem;" color="var(--leleo-vcard-color)"
+                        <v-fab class="leleo-action-fab leleo-fab-music" color="var(--leleo-vcard-color)"
                         variant="tonal" icon="mdi-music-circle" @click="$refs.musicDialog.open()"></v-fab>
                     </v-col>
                     <v-col class="ma-1" cols="auto">
-                        <v-fab v-if="isUserLoggedIn" style="width: 2.5rem;height: 2.5rem;" color="var(--leleo-vcard-color)"
+                        <v-fab v-if="isUserLoggedIn" class="leleo-action-fab" color="var(--leleo-vcard-color)"
                         variant="tonal" icon="mdi-account-circle" @click="$refs.profileDialog.open()"></v-fab>
                     </v-col>
                     <v-col class="ma-1" cols="auto">
@@ -120,7 +131,7 @@
                             transition="slide-y-transition"
                         >
                         <template v-slot:activator="{ props: activatorProps }">
-                            <v-fab style="width: 2.5rem;height: 2.5rem;" color="var(--leleo-vcard-color)"
+                            <v-fab class="leleo-action-fab" color="var(--leleo-vcard-color)"
                             variant="tonal"
                             v-bind="activatorProps"
                             icon="mdi-cog"
@@ -286,7 +297,7 @@
     </v-dialog>
 
     <!-- 叶片病害诊断对话框 -->
-    <DiseaseMain ref="diseaseMain" />
+    <DiseaseMain ref="diseaseMain" @askAi="onAskAi" />
 
     <!-- 个人中心对话框 -->
     <ProfileDialog ref="profileDialog" @updated="onProfileUpdated" @logout="onUserLogout" />
@@ -294,6 +305,7 @@
       @prev="previousTrack" @toggle="togglePlay" @next="nextTrack" @play="updateCurrentIndex" @seek="musicSeek" @playonline="playOnlineSong" @mode="onPlayMode" />
     <BlogPage ref="blogPage" />
     <ApproveDialog ref="approveDialog" />
+    <AiGateway ref="aiGateway" :avatar="configdata.avatar" />
   </v-app>
 </template>
 

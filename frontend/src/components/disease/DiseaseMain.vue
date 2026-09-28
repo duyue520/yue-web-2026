@@ -46,7 +46,7 @@
 
           <v-window v-model="tab" class="tab-window">
             <v-window-item value="diagnosis">
-              <diagnosis-tab ref="diagnosisTab" @diagnosed="onDiagnosed" />
+              <diagnosis-tab ref="diagnosisTab" @diagnosed="onDiagnosed" @askAi="$emit('askAi', $event)" />
             </v-window-item>
             <v-window-item value="history">
               <history-tab ref="historyTab" :key="'hist-'+historyKey" />

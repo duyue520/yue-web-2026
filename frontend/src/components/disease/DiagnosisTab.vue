@@ -74,6 +74,13 @@
         <div class="advice-item"><strong>🌱 农艺措施：</strong>{{ result.advices.method }}</div>
       </div>
 
+      <!-- AI 分身追问：融进诊断动线（不是独立卡片） -->
+      <div v-if="result && result.predictions && result.predictions.length" class="ai-followup" @click="askAi">
+        <span class="ai-followup-dot"></span>
+        <span class="ai-followup-txt">对「{{ result.predictions[0].disease_cn }}」还有疑问？问问越的分身</span>
+        <v-icon size="16" class="ai-followup-arrow">mdi-arrow-right</v-icon>
+      </div>
+
       <!-- 操作 -->
       <div class="action-row">
         <v-btn variant="flat" color="green-darken-2" rounded="lg" prepend-icon="mdi-refresh" @click="reset">重新诊断</v-btn>
@@ -95,6 +102,7 @@ import api from '../../services/api.js';
 
 export default {
   name: 'DiagnosisTab',
+  emits: ['askAi'],
   data() {
     return {
       loading: false,
@@ -119,6 +127,13 @@ export default {
     },
   },
   methods: {
+    askAi() {
+      const p = this.result?.predictions?.[0] || {};
+      this.$emit('askAi', {
+        context: '叶片病害诊断结果：' + (p.disease_cn || '未知病害') + '（置信度 ' + (p.confidence || 0) + '%）',
+        preset: (p.disease_cn || '这个病') + ' 要怎么防治？',
+      });
+    },
     capturePhoto() {
       const input = this.$refs.fileInput;
       input.setAttribute('capture', 'environment');
@@ -229,4 +244,23 @@ export default {
 .action-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
 
 .correction-card { margin-top: 8px; }
+
+.ai-followup {
+  display: flex; align-items: center; gap: 9px;
+  margin: 2px 0 12px; padding: 11px 14px;
+  border-radius: 13px; cursor: pointer;
+  background: linear-gradient(100deg, rgba(102,187,106,.14), rgba(46,125,50,.05));
+  border: 1px dashed rgba(102,187,106,.42);
+  transition: all .25s ease;
+}
+.ai-followup:hover { background: linear-gradient(100deg, rgba(102,187,106,.24), rgba(46,125,50,.12)); transform: translateY(-1px); }
+.ai-followup-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: #66bb6a; box-shadow: 0 0 9px #66bb6a;
+  animation: fu-breathe 2.6s ease-in-out infinite;
+}
+@keyframes fu-breathe { 0%,100% { opacity: .45; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.18); } }
+.ai-followup-txt { flex: 1; font-size: 13px; color: #cfe9d0; }
+.ai-followup-arrow { color: rgba(182,226,185,.75); transition: transform .25s ease; }
+.ai-followup:hover .ai-followup-arrow { transform: translateX(3px); }
 </style>
