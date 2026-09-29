@@ -112,6 +112,14 @@ app.include_router(airelay.router)
 app.include_router(video.router)
 
 
+@app.on_event("startup")
+def _start_video_warmer():
+    try:
+        video.start_warmer()
+    except Exception:
+        pass
+
+
 @app.get("/")
 def root():
     """根路由 —— API 信息"""

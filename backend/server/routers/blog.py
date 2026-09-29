@@ -10,6 +10,15 @@ from ..models.db_models import User
 
 router = APIRouter(prefix="/api/blog", tags=["博客"])
 
+
+# 博客作者对外统一显示站主人设名（不暴露登录用户名/真名）
+SITE_AUTHOR = "越"
+
+
+def _author_name(u):
+    return SITE_AUTHOR if u else ""
+
+
 class BlogCategory(Base):
     __tablename__ = "blog_categories"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -64,7 +73,7 @@ def list_articles(skip: int=0, limit:int=20, category:str="", db:Session=Depends
         "id":a.id,"title":a.title,"summary":a.summary or a.content[:200],
         "content":a.content[:300],"cover_url":a.cover_url or "",
         "category":a.category.name if a.category else "",
-        "author":a.user.username if a.user else "","views":a.views,
+        "author":_author_name(a.user),"views":a.views,
         "created_at":a.created_at.strftime("%Y-%m-%d %H:%M")} for a in articles]}
 
 @router.get("/articles/{aid}")
@@ -75,8 +84,8 @@ def get_article(aid:int, db:Session=Depends(get_db)):
     comments=db.query(BlogComment).filter(BlogComment.article_id==aid).order_by(BlogComment.created_at).all()
     return {"id":a.id,"title":a.title,"content":a.content,"cover_url":a.cover_url or "",
         "category":a.category.name if a.category else "",
-        "author":a.user.username if a.user else "","views":a.views,"created_at":a.created_at.strftime("%Y-%m-%d %H:%M"),
-        "comments":[{"id":c.id,"content":c.content,"author":c.user.username if c.user else "","created_at":c.created_at.strftime("%m-%d %H:%M")} for c in comments]}
+        "author":_author_name(a.user),"views":a.views,"created_at":a.created_at.strftime("%Y-%m-%d %H:%M"),
+        "comments":[{"id":c.id,"content":c.content,"author":_author_name(c.user),"created_at":c.created_at.strftime("%m-%d %H:%M")} for c in comments]}
 
 @router.post("/articles")
 def create_article(data:ArticleCreate, user:User=Depends(get_current_user), db:Session=Depends(get_db)):

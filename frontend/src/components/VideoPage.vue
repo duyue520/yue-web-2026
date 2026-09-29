@@ -91,7 +91,7 @@
                 <button v-if="row.kw" class="vp-more" @click="openList({ id: row.kw, name: row.name })">更多<v-icon size="13">mdi-chevron-right</v-icon></button>
               </div>
               <div class="vp-rail">
-                <div v-for="it in row.items" :key="it.src + it.id" class="vp-card rail" @click="openDetail(it)">
+                <div v-for="it in row.items" :key="it.src + it.id" class="vp-card rail" @click="openDetail(it)" @mouseenter="prefetch(it)">
                   <div class="vp-poster" :style="it.pic ? { backgroundImage: `url(${it.pic})` } : {}">
                     <span v-if="!it.pic" class="vp-noimg">无海报</span>
                     <span class="vp-grad"></span>
@@ -125,7 +125,7 @@
             <div v-for="i in 12" :key="i" class="vp-card"><div class="vp-poster sk-anim"></div><div class="vp-line bar sk-anim"></div></div>
           </div>
           <div v-else class="vp-grid">
-            <div v-for="it in listItems" :key="it.src + it.id" class="vp-card" @click="openDetail(it)">
+            <div v-for="it in listItems" :key="it.src + it.id" class="vp-card" @click="openDetail(it)" @mouseenter="prefetch(it)">
               <div class="vp-poster" :style="it.pic ? { backgroundImage: `url(${it.pic})` } : {}">
                 <span v-if="!it.pic" class="vp-noimg">无海报</span>
                 <span class="vp-grad"></span>
@@ -150,7 +150,7 @@
             <div v-for="i in 10" :key="i" class="vp-card"><div class="vp-poster sk-anim"></div><div class="vp-line bar sk-anim"></div></div>
           </div>
           <div v-else-if="results.length" class="vp-grid">
-            <div v-for="r in results" :key="r.src + r.id" class="vp-card" @click="openDetail(r)">
+            <div v-for="r in results" :key="r.src + r.id" class="vp-card" @click="openDetail(r)" @mouseenter="prefetch(r)">
               <div class="vp-poster" :style="r.pic ? { backgroundImage: `url(${r.pic})` } : {}">
                 <span v-if="!r.pic" class="vp-noimg">无海报</span>
                 <span class="vp-grad"></span>
@@ -181,23 +181,64 @@
                   <span v-if="detail.area">{{ detail.area }}</span>
                   <span v-if="detail.remarks">{{ detail.remarks }}</span>
                   <span v-if="detail.eps.length">{{ detail.eps.length }} 集</span>
+                  <span v-if="detail.maxRes" class="res">{{ detail.maxRes }} 画质</span>
                   <span class="src">线路 {{ detail.src }}</span>
                 </div>
                 <p v-if="detail.content" class="vp-story">{{ detail.content }}</p>
                 <div class="vp-actions">
                   <button class="vp-btn primary" @click="playEp(prog.ep || 0, true)"><v-icon size="15">mdi-play</v-icon>{{ prog.ep ? '续播 第' + (prog.ep + 1) + ' 集' : '从头播放' }}</button>
                   <button class="vp-btn" @click="toggleFav()"><v-icon size="15">{{ isFav ? 'mdi-heart' : 'mdi-heart-outline' }}</v-icon>{{ isFav ? '已收藏' : '收藏' }}</button>
-                  <button class="vp-btn" @click="switchSource()"><v-icon size="15">mdi-swap-horizontal</v-icon>换源</button>
+                  <button class="vp-btn" @click="altOpen = !altOpen"><v-icon size="15">mdi-swap-horizontal</v-icon>换源<sub v-if="detail.alts && detail.alts.length">{{ detail.alts.length }}</sub></button>
                   <button class="vp-btn" @click="toggleFallback()"><v-icon size="15">mdi-television-classic</v-icon>{{ useFallback ? '直连播放' : '备用线路' }}</button>
                 </div>
               </div>
             </div>
           </div>
 
+          <transition name="vp-drop">
+            <div v-if="altOpen && detail.alts && detail.alts.length" class="vp-alts">
+              <div class="vp-alts-t"><v-icon size="13">mdi-swap-horizontal</v-icon>选择线路（按画质/集数自选）</div>
+              <button v-for="(a, i) in detail.alts" :key="i" class="vp-alt" @click="useAlt(a)">
+                <span class="vp-alt-src">{{ a.src }}</span>
+                <span class="vp-alt-meta">{{ a.epCount }} 集<template v-if="a.maxRes"> · {{ a.maxRes }}</template></span>
+                <span class="vp-alt-go">切换<v-icon size="12">mdi-chevron-right</v-icon></span>
+              </button>
+            </div>
+          </transition>
+
           <div class="vp-player-wrap">
-            <video v-show="!useFallback" ref="videoEl" class="vp-video" controls playsinline @ended="onEnded"></video>
+            <video v-show="!useFallback" ref="videoEl" class="vp-video" controls playsinline
+                     @ended="onEnded" @play="playing = true" @pause="playing = false"
+                     @dblclick="toggleFs"></video>
+            <div v-if="!useFallback && curEp" class="vp-pctl">
+              <button class="vp-pbtn" :disabled="curIdx <= 0" title="上一集" @click="prevEp"><v-icon size="16">mdi-skip-previous</v-icon></button>
+              <button class="vp-pbtn" :title="playing ? '暂停' : '播放'" @click="togglePlay"><v-icon size="18">{{ playing ? 'mdi-pause' : 'mdi-play' }}</v-icon></button>
+              <button class="vp-pbtn" :disabled="curIdx >= detail.eps.length - 1" title="下一集" @click="nextEp"><v-icon size="16">mdi-skip-next</v-icon></button>
+              <button class="vp-pbtn" title="全屏" @click="toggleFs"><v-icon size="16">mdi-fullscreen</v-icon></button>
+              <button class="vp-pbtn wide" title="选集" @click="epDrawer = !epDrawer">
+                <v-icon size="14">mdi-format-list-numbered</v-icon>{{ curIdx + 1 }}/{{ detail.eps.length }}
+              </button>
+            </div>
+            <transition name="vp-drop">
+              <div v-if="epDrawer && !useFallback" class="vp-drawer">
+                <div class="vp-drawer-t">选集<button class="vp-drawer-x" @click="epDrawer = false"><v-icon size="13">mdi-close</v-icon></button></div>
+                <div class="vp-drawer-grid">
+                  <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-drawer-ep', { on: i === curIdx }]"
+                          @click="playEp(i); epDrawer = false">{{ e.name }}</button>
+                </div>
+              </div>
+            </transition>
             <iframe v-show="useFallback && fallbackSrc" class="vp-frame" :src="fallbackSrc" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
             <div v-if="loadingEp" class="vp-loading"><div class="vp-spin"></div><p>{{ loadMsg }}</p></div>
+            <transition name="vp-drop">
+              <div v-if="nextCount > 0" class="vp-next">
+                <p>下一集 <b>{{ nextCount }}</b> 秒后自动播放</p>
+                <div class="vp-err-btns">
+                  <button class="vp-btn primary" @click="nextNow">立即播放</button>
+                  <button class="vp-btn" @click="nextCount = 0">取消</button>
+                </div>
+              </div>
+            </transition>
             <transition name="vp-drop">
               <div v-if="playErr" class="vp-err">
                 <p>{{ playErr }}</p>
@@ -229,7 +270,7 @@
           </div>
 
           <div class="vp-eps">
-            <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-ep', { on: i === curIdx }]" @click="playEp(i)">{{ e.name }}</button>
+            <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-ep', { on: i === curIdx }]" @click="playEp(i, true)">{{ e.name }}</button>
           </div>
         </div>
       </div>
@@ -269,11 +310,13 @@ export default {
         { name: '极速解析', url: 'https://jx.2s0.cn/player/?url=' },
       ],
       vipUrl: '', vipLine: null, vipSrc: '',
-      detail: null, curIdx: -1, curEp: null,
+      detail: null, curIdx: -1, curEp: null, nextEp: -1,
       useFallback: false, fallbackSrc: '',
       loadingEp: false, loadMsg: '', playErr: '',
       qualities: [], curLevel: -1,
       _hls: null, _retriedLevel: false, _progTimer: 0, _lastProgPush: 0,
+      altOpen: false, nextCount: 0, nextTimer: null, _epTimer: 0, _keyHandler: null,
+      playing: false, epDrawer: false, autoFs: true,
     };
   },
   computed: {
@@ -281,6 +324,16 @@ export default {
   },
   mounted() {
     const sync = () => { this.xs = window.innerWidth < 700; };
+    this._keyHandler = (e) => {
+      if (!this.visible || this.view !== 'detail' || !this.detail) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const v = this.$refs.videoEl;
+      if (e.key === 'ArrowRight' && this.curIdx < this.detail.eps.length - 1) { e.preventDefault(); this.playEp(this.curIdx + 1); }
+      else if (e.key === 'ArrowLeft' && this.curIdx > 0) { e.preventDefault(); this.playEp(this.curIdx - 1); }
+      else if (e.key === ' ' && v) { e.preventDefault(); if (v.paused) { v.play(); } else { v.pause(); } }
+    };
+    window.addEventListener('keydown', this._keyHandler);
     sync();
     try { window.addEventListener('resize', sync); } catch (e) {}
     try {
@@ -349,14 +402,27 @@ export default {
     // ---------- 首页 ----------
     async loadHome(force) {
       if (this.homeRows.length && !force) return;
-      this.homeLoading = true;
+      // 秒开：先用上次本地缓存渲染，再后台刷新（首屏 0ms 出内容）
+      if (!force && !this.homeRows.length) {
+        try {
+          const cached = JSON.parse(sessionStorage.getItem('wb_video_home') || 'null');
+          if (cached && cached.rows && cached.rows.length) {
+            this.homeRows = cached.rows;
+            this.homeTypes = cached.homeTypes || [];
+          }
+        } catch (e) {}
+      }
+      if (!this.homeRows.length) this.homeLoading = true;
       try {
         const d = await this.fetchJSON('/api/video/home');
         this.homeRows = d.rows || [];
         this.homeTypes = d.homeTypes || [];
+        try { sessionStorage.setItem('wb_video_home', JSON.stringify({ rows: this.homeRows, homeTypes: this.homeTypes })); } catch (e) {}
       } catch (e) {
-        this.homeRows = [];
-        this.showToast('首页加载失败，可点「重新加载」');
+        if (!this.homeRows.length) {
+          this.homeRows = [];
+          this.showToast('首页加载失败，可点「重新加载」');
+        }
       }
       this.homeLoading = false;
     },
@@ -436,11 +502,26 @@ export default {
         if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」线路');
         this.bestSrc = d.src;
         try { localStorage.setItem('wb_video_src', d.src); } catch (e) {}
+        // 异步补充：画质 + 换源候选（不阻塞首屏）
+        this.fillExtra(d);
         try {
           const all = JSON.parse(localStorage.getItem('wb_video_prog') || '{}');
           this.prog = all[d.name] || { ep: 0, t: 0 };
         } catch (e) { this.prog = { ep: 0, t: 0 }; }
       } catch (e) { this.showToast((e && e.message) || '加载详情失败'); }
+    },
+    async fillExtra(d) {
+      try {
+        const ex = await this.fetchJSON('/api/video/extra?id=' + encodeURIComponent(d.id) + '&src=' + encodeURIComponent(d.src || '主源') + '&name=' + encodeURIComponent(d.name), 2);
+        if (this.detail && this.detail.id === d.id) {
+          this.detail.maxRes = ex.maxRes || '';
+          this.detail.alts = ex.alts || [];
+        }
+      } catch (e) {}
+    },
+    prefetch(r) {
+      if (!r || !r.id) return;
+      try { fetch('/api/video/detail?id=' + encodeURIComponent(r.id) + '&src=' + encodeURIComponent(r.src || '主源') + '&fallback=1').catch(() => {}); } catch (e) {}
     },
     saveProg(force) {
       if (!this.detail || this.curIdx < 0) return;
@@ -469,6 +550,22 @@ export default {
       this.favs = this.favs.slice(0, 30);
       try { localStorage.setItem('wb_video_fav', JSON.stringify(this.favs)); } catch (e) {}
     },
+    useAlt(a) {
+      this.altOpen = false;
+      this.showToast('正在切到「' + a.src + '」' + (a.maxRes ? '（' + a.maxRes + '）' : ''));
+      this.openDetail({ id: a.id, name: a.name, src: a.src, pic: a.pic });
+    },
+    epKey(name, i) { return 'wb_video_ep:' + name + ':' + i; },
+    saveEpPos() {
+      if (!this.detail || this.curIdx < 0) return;
+      const v = this.$refs.videoEl;
+      if (!v) return;
+      const now = Date.now();
+      if (now - (this._epTimer || 0) < 5000) return;
+      this._epTimer = now;
+      try { localStorage.setItem(this.epKey(this.detail.name, this.curIdx), String(Math.floor(v.currentTime || 0))); } catch (e) {}
+      this.saveProg();
+    },
     switchSource() {
       if (!this.detail) return;
       const pool = this.results.length ? this.results : this.listItems;
@@ -484,39 +581,93 @@ export default {
       }
     },
     stopPlay() {
+      if (this.nextTimer) { clearInterval(this.nextTimer); this.nextTimer = null; }
+      this.nextCount = 0;
       try { if (this._hls) { this._hls.destroy(); this._hls = null; } } catch (e) {}
       const v = this.$refs.videoEl;
       if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {} }
     },
-    async playEp(i, keepTime) {
+    async playEp(i, userGesture) {
       if (!this.detail || !this.detail.eps[i]) return;
+      if (this.nextTimer) { clearInterval(this.nextTimer); this.nextTimer = null; }
+      this.nextCount = 0;
       this.curIdx = i;
       this.curEp = this.detail.eps[i];
       this.playErr = ''; this.useFallback = false; this.fallbackSrc = '';
       this._retriedLevel = false;
       this.loadingEp = true; this.loadMsg = '正在建立直连…';
       await this.$nextTick();
-      const ok = await this.nativePlay(this.curEp.url);
+      const ok = await this.nativePlay(this.curEp.url, true);
       this.loadingEp = false;
       if (!ok) this.playErr = '直连没能播放（片源可能限制跨域）';
-      this.saveProg();
+      this.saveProg(true);
+      if (userGesture && this.autoFs) {
+        // 用户点击播放 → 直接全屏（市面播放器习惯）
+        try {
+          const wrap = this.$el && this.$el.querySelector('.vp-player-wrap');
+          if (wrap && wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {});
+        } catch (e) {}
+      }
     },
     onEnded() {
       if (!this.detail) return;
-      this.saveProg();
+      this.saveProg(true);
       if (this.autoNext && this.curIdx < this.detail.eps.length - 1) {
-        this.showToast('自动连播：' + this.detail.eps[this.curIdx + 1].name, 2600);
-        this.playEp(this.curIdx + 1);
+        this.nextEp = this.curIdx + 1;
+        this.nextCount = 3;
+        if (this.nextTimer) clearInterval(this.nextTimer);
+        this.nextTimer = setInterval(() => {
+          this.nextCount -= 1;
+          if (this.nextCount <= 0) {
+            clearInterval(this.nextTimer);
+            this.nextTimer = null;
+            this.playEp(this.nextEp);
+          }
+        }, 1000);
       }
+    },
+    nextNow() {
+      if (this.nextTimer) { clearInterval(this.nextTimer); this.nextTimer = null; }
+      this.nextCount = 0;
+      if (this.nextEp >= 0) this.playEp(this.nextEp);
+    },
+    playerEl() {
+      const v = this.$refs.videoEl;
+      return v || null;
+    },
+    togglePlay() {
+      const v = this.playerEl();
+      if (!v) return;
+      if (v.paused) { v.play().catch(() => {}); } else { v.pause(); }
+    },
+    prevEp() { if (this.curIdx > 0) this.playEp(this.curIdx - 1); },
+    nextEp() { if (this.detail && this.curIdx < this.detail.eps.length - 1) this.playEp(this.curIdx + 1); },
+    toggleFs() {
+      const wrap = this.$el && this.$el.querySelector('.vp-player-wrap');
+      try {
+        if (document.fullscreenElement) { document.exitFullscreen(); return; }
+        if (wrap && wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {});
+        else if (this.playerEl() && this.playerEl().webkitEnterFullscreen) this.playerEl().webkitEnterFullscreen();
+      } catch (e) {}
     },
     setRate(r) {
       this.rate = r;
       const v = this.$refs.videoEl;
       if (v) v.playbackRate = r;
     },
-    async nativePlay(url) {
+    async nativePlay(url, isSwitch) {
       const v = this.$refs.videoEl;
       if (!v || !url) return false;
+      // 无缝切集：复用 hls 实例（不重建播放器、不黑屏）
+      if (isSwitch && this._hls && this._hls.media === v) {
+        try {
+          this._hls.loadSource(url);
+          v.playbackRate = this.rate;
+          v.play().catch(() => {});
+          this.$nextTick(() => { try { v.currentTime = this.getEpPos(); } catch (e) {} });
+          return true;
+        } catch (e) {}
+      }
       try { if (this._hls) { this._hls.destroy(); this._hls = null; } } catch (e) {}
       const isM3u8 = /\.m3u8(\?|$)/i.test(url);
       if (isM3u8 && v.canPlayType('application/vnd.apple.mpegurl') && !window.MediaSource) {
@@ -550,11 +701,20 @@ export default {
             hls.attachMedia(v);
             v.playbackRate = this.rate;
             v.play().catch(() => {});
+            v.addEventListener('timeupdate', () => this.saveEpPos());
+            this.$nextTick(() => { try { v.currentTime = this.getEpPos(); } catch (e) {} });
             return true;
           }
         } catch (e) {}
       }
       try { v.src = url; v.playbackRate = this.rate; v.play().catch(() => {}); return true; } catch (e) { return false; }
+    },
+    getEpPos() {
+      try {
+        const k = this.epKey(this.detail.name, this.curIdx);
+        const s = parseInt(localStorage.getItem(k) || '0', 10);
+        return (s > 5 && s < 86400) ? s : 0;
+      } catch (e) { return 0; }
     },
     recoverPlay() {
       this.playErr = '';
@@ -640,6 +800,7 @@ export default {
 .vp-rowtitle { font-size: 14px; font-weight: 800; color: #e2e8f0; }
 .vp-rowtitle.sk-anim { width: 120px; height: 14px; border-radius: 6px; background: #131b2f; }
 .vp-more { border: none; background: transparent; color: #7dd3fc; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; }
+.vp-btn sub { font-size: 9px; margin-left: 2px; opacity: .8; }
 .vp-more:hover { color: #e0f2fe; }
 .vp-rail { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 10px; scroll-behavior: smooth; }
 .vp-rail::-webkit-scrollbar { height: 6px; }
@@ -694,6 +855,15 @@ export default {
 .vp-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .vp-meta span { font-size: 11px; color: #a5b4fc; background: rgba(99, 102, 241, .18); border: 1px solid rgba(129, 140, 248, .35); padding: 2px 9px; border-radius: 999px; }
 .vp-meta span.src { color: #6ee7b7; background: rgba(16, 185, 129, .14); border-color: rgba(52, 211, 153, .4); }
+.vp-meta span.res { color: #fcd34d; background: rgba(250, 204, 21, .14); border-color: rgba(253, 224, 71, .45); font-weight: 800; }
+.vp-alts { margin-bottom: 10px; background: rgba(16, 24, 40, .85); border: 1px solid rgba(125, 211, 252, .25); border-radius: 12px; padding: 10px 12px; }
+.vp-alts-t { font-size: 11.5px; color: #93c5fd; display: flex; align-items: center; gap: 5px; margin-bottom: 8px; }
+.vp-alt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: rgba(255, 255, 255, .04); border: 1px solid rgba(148, 163, 184, .22); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; cursor: pointer; color: #cbd5e1; font-size: 12.5px; transition: all .16s; }
+.vp-alt:hover { border-color: #38bdf8; background: rgba(56, 189, 248, .1); }
+.vp-alt-src { font-weight: 800; color: #7dd3fc; }
+.vp-alt-meta { color: #94a3b8; }
+.vp-alt-go { margin-left: auto; color: #6ee7b7; display: inline-flex; align-items: center; font-size: 11.5px; }
+.vp-next { position: absolute; right: 12px; bottom: 12px; background: rgba(2, 6, 23, .92); border: 1px solid rgba(125, 211, 252, .4); border-radius: 12px; padding: 10px 14px; color: #e0f2fe; font-size: 12.5px; z-index: 4; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
 .vp-story { font-size: 12px; color: #94a3b8; line-height: 1.7; max-height: 62px; overflow: hidden; margin-bottom: 10px; }
 .vp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .vp-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(148, 163, 184, .3); background: rgba(255, 255, 255, .05); color: #cbd5e1; font-size: 12.5px; font-weight: 700; padding: 8px 14px; border-radius: 10px; cursor: pointer; transition: all .18s; }
@@ -703,7 +873,7 @@ export default {
 
 .vp-player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid rgba(125, 211, 252, .25); box-shadow: 0 16px 44px rgba(0, 0, 0, .6), 0 0 0 1px rgba(139, 92, 246, .12) inset; }
 .vp-video, .vp-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: none; background: #000; }
-.vp-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(3, 6, 14, .82); color: #93c5fd; font-size: 13px; z-index: 3; }
+.vp-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(3, 6, 14, .38); color: #93c5fd; font-size: 13px; z-index: 3; }
 .vp-err { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(24, 6, 14, .9); color: #fda4af; font-size: 13px; z-index: 3; padding: 20px; text-align: center; }
 .vp-err-btns { display: flex; gap: 8px; }
 .vp-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(125, 211, 252, .25); border-top-color: #38bdf8; animation: vp-rot .8s linear infinite; }
@@ -736,4 +906,104 @@ export default {
   .vp-card.rail, .vp-mini { width: 96px; }
   .vp-ctl { flex-direction: column; align-items: flex-start; }
 }
+
+/* ============ 椰白主题（覆盖深色，保持播放器区域为深色） ============ */
+.vp-shell { background: linear-gradient(160deg, #fdfaf3 0%, #f8f3e8 45%, #f4eee0 100%) !important;
+  border: 1px solid rgba(180, 160, 120, .28) !important;
+  box-shadow: 0 30px 80px rgba(90, 74, 44, .28), inset 0 1px 0 rgba(255, 255, 255, .9) !important; }
+.vp-aurora { opacity: .5 !important; }
+.vp-aurora .a1 { background: rgba(255, 196, 128, .35) !important; }
+.vp-aurora .a2 { background: rgba(148, 187, 233, .3) !important; }
+.vp-aurora .a3 { background: rgba(255, 170, 190, .22) !important; }
+.vp-title { background: linear-gradient(90deg, #c9762b, #b3562f 55%, #7d6a3f) !important;
+  -webkit-background-clip: text !important; background-clip: text !important; color: transparent !important; }
+.vp-sub { color: #9c8f78 !important; -webkit-text-fill-color: #9c8f78 !important; }
+.vp-note { color: #a99d87 !important; }
+.vp-logo { filter: drop-shadow(0 2px 6px rgba(201, 118, 43, .35)) !important; }
+.vp-tab { border-color: rgba(201, 118, 43, .3) !important; background: rgba(255, 255, 255, .75) !important; color: #8a6b45 !important; }
+.vp-tab.on { background: linear-gradient(120deg, #e8a25c, #d9814f) !important; color: #fff !important; box-shadow: 0 6px 16px rgba(201, 118, 43, .3) !important; }
+.vp-x, .vp-back { border-color: rgba(180, 160, 120, .35) !important; background: rgba(255, 255, 255, .8) !important; color: #8a7c62 !important; }
+.vp-search { background: #fff !important; border-color: rgba(180, 160, 120, .35) !important; box-shadow: 0 2px 10px rgba(150, 130, 95, .1); }
+.vp-search:focus-within { border-color: #e8a25c !important; box-shadow: 0 0 0 4px rgba(232, 162, 92, .18) !important; }
+.vp-input { color: #4a4438 !important; }
+.vp-input::placeholder { color: #b0a68f !important; }
+.vp-go { color: #fff !important; background: linear-gradient(120deg, #e8a25c, #cf7a48) !important; box-shadow: 0 6px 16px rgba(201, 118, 43, .28) !important; }
+.vp-sug { background: #fffdf8 !important; border-color: rgba(180, 160, 120, .3) !important; box-shadow: 0 18px 36px rgba(120, 100, 70, .18) !important; }
+.vp-sug button { color: #5b5342 !important; }
+.vp-sug button:hover { background: rgba(232, 162, 92, .12) !important; color: #8a5a22 !important; }
+.vp-chip { border-color: rgba(180, 160, 120, .4) !important; background: rgba(255, 255, 255, .85) !important; color: #6f6552 !important; }
+.vp-chip:hover { border-color: #e8a25c !important; color: #a35f1e !important; background: rgba(232, 162, 92, .12) !important; }
+.vp-hot-c { border-color: rgba(180, 160, 120, .45) !important; color: #94886f !important; background: rgba(255, 255, 255, .6) !important; }
+.vp-hot-c:hover { color: #a35f1e !important; border-color: #e8a25c !important; }
+.vp-rowtitle { color: #4a4438 !important; }
+.vp-more { color: #b0672a !important; }
+.vp-card .vp-poster { border-color: rgba(180, 160, 120, .3) !important; box-shadow: 0 4px 14px rgba(150, 130, 95, .14); }
+.vp-card:hover .vp-poster { border-color: #e8a25c !important; box-shadow: 0 12px 26px rgba(201, 118, 43, .3) !important; }
+.vp-line { color: #5b5342 !important; }
+.vp-rem { background: rgba(255, 251, 240, .92) !important; color: #8a6b45 !important; border: 1px solid rgba(180, 160, 120, .3); }
+.vp-src { background: rgba(255, 251, 240, .92) !important; color: #8a6b45 !important; border-color: rgba(180, 160, 120, .4) !important; }
+.vp-src.star { color: #b0672a !important; border-color: rgba(232, 162, 92, .6) !important; }
+.vp-ltitle { color: #4a4438 !important; }
+.vp-lcount, .vp-end { color: #a99d87 !important; }
+.vp-empty p { color: #7d735f !important; }
+.vp-empty small { color: #a99d87 !important; }
+.vp-btn { border-color: rgba(180, 160, 120, .4) !important; background: rgba(255, 255, 255, .85) !important; color: #6f6552 !important; }
+.vp-btn:hover { border-color: #e8a25c !important; color: #a35f1e !important; }
+.vp-btn.primary { background: linear-gradient(120deg, #e8a25c, #cf7a48) !important; color: #fff !important; }
+.vp-toast { color: #7a6a2b !important; background: linear-gradient(90deg, rgba(233, 205, 120, .35), rgba(214, 232, 160, .3)) !important; border-color: rgba(196, 170, 90, .5) !important; }
+.vp-detail { background: linear-gradient(180deg, #fdfaf3, #f7f1e4) !important; }
+.vp-hero-mask { backdrop-filter: blur(26px) brightness(1.06) !important;
+  background: linear-gradient(90deg, rgba(253, 250, 243, .95), rgba(253, 250, 243, .6)) !important; }
+.vp-hero-info h3 { color: #3f3a2e !important; }
+.vp-meta span { color: #8a6b45 !important; background: rgba(255, 255, 255, .8) !important; border-color: rgba(180, 160, 120, .4) !important; }
+.vp-meta span.src { color: #2f7d5c !important; background: rgba(214, 240, 226, .7) !important; border-color: rgba(120, 190, 155, .5) !important; }
+.vp-meta span.res { color: #a35f1e !important; background: rgba(255, 236, 205, .85) !important; border-color: rgba(232, 162, 92, .55) !important; }
+.vp-story { color: #7d735f !important; }
+.vp-hero-poster { border-color: rgba(180, 160, 120, .4) !important; box-shadow: 0 12px 30px rgba(140, 120, 85, .28) !important; }
+.vp-ctl, .vp-now { color: #7d6a3f !important; }
+.vp-mini { border-color: rgba(180, 160, 120, .4) !important; background: rgba(255, 255, 255, .85) !important; color: #8a6b45 !important; }
+.vp-auto { color: #94886f !important; }
+.vp-qchip { border-color: rgba(180, 160, 120, .4) !important; background: rgba(255, 255, 255, .85) !important; color: #8a6b45 !important; }
+.vp-qchip.on { background: linear-gradient(120deg, #e8a25c, #cf7a48) !important; color: #fff !important; border-color: transparent !important; }
+.vp-ep { border-color: rgba(180, 160, 120, .35) !important; background: rgba(255, 255, 255, .85) !important; color: #6f6552 !important; }
+.vp-ep:hover { border-color: #e8a25c !important; color: #a35f1e !important; }
+.vp-ep.on { background: linear-gradient(120deg, #e8a25c, #cf7a48) !important; color: #fff !important; border-color: transparent !important; }
+.vp-alts { background: rgba(255, 253, 248, .96) !important; border-color: rgba(180, 160, 120, .35) !important; }
+.vp-alts-t { color: #8a6b45 !important; }
+.vp-alt { background: #fff !important; border-color: rgba(180, 160, 120, .3) !important; color: #5b5342 !important; }
+.vp-alt:hover { border-color: #e8a25c !important; background: rgba(232, 162, 92, .1) !important; }
+.vp-alt-src { color: #b0672a !important; }
+.vp-alt-meta { color: #94886f !important; }
+.vp-alt-go { color: #2f7d5c !important; }
+.vp-tip, .vp-lines .vp-line-chip, .vp-empty, .vp-empty-orb { color: #8a7c62 !important; }
+.vp-tip { background: rgba(255, 250, 240, .85) !important; border-color: rgba(180, 160, 120, .4) !important; }
+.vp-line-chip { border-color: rgba(180, 160, 120, .4) !important; background: rgba(255, 255, 255, .85) !important; color: #6f6552 !important; }
+.vp-line-chip:hover { color: #a35f1e !important; border-color: #e8a25c !important; }
+.vp-line-chip.on { background: linear-gradient(120deg, #e8a25c, #cf7a48) !important; color: #fff !important; }
+.vp-empty-orb { background: radial-gradient(circle at 32% 28%, rgba(232, 162, 92, .3), rgba(255, 226, 190, .2)) !important; border-color: rgba(232, 162, 92, .35) !important; color: #c9762b !important; }
+.vp-empty-orb.soft { background: radial-gradient(circle at 32% 28%, rgba(255, 205, 130, .35), rgba(255, 236, 210, .25)) !important; border-color: rgba(232, 180, 110, .4) !important; color: #d99433 !important; }
+.vp-rowtitle.sk-anim, .vp-line.bar, .vp-mini.sk-anim { background: #efe7d6 !important; }
+.vp-player-wrap { border-color: rgba(180, 160, 120, .4) !important; box-shadow: 0 16px 40px rgba(140, 120, 85, .3) !important; }
+
+/* ============ 播放器悬浮控制条 + 选集抽屉 ============ */
+.vp-pctl { position: absolute; left: 10px; right: 10px; bottom: 62px; z-index: 5; display: flex; align-items: center; gap: 6px;
+  pointer-events: none; }
+.vp-pctl .vp-pbtn { pointer-events: auto; }
+.vp-pbtn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 34px; min-width: 34px; padding: 0 10px;
+  border-radius: 10px; border: 1px solid rgba(255, 255, 255, .28); background: rgba(20, 20, 24, .55); color: #fff;
+  cursor: pointer; backdrop-filter: blur(6px); transition: all .16s; font-size: 12px; }
+.vp-pbtn:hover { background: rgba(232, 162, 92, .85); border-color: transparent; }
+.vp-pbtn:disabled { opacity: .4; cursor: not-allowed; }
+.vp-pbtn.wide { margin-left: auto; font-weight: 700; }
+.vp-drawer { position: absolute; right: 10px; bottom: 104px; z-index: 6; width: min(340px, 76%); max-height: 60%;
+  background: rgba(255, 253, 248, .98); border: 1px solid rgba(180, 160, 120, .35); border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(90, 74, 44, .3); overflow: hidden; display: flex; flex-direction: column; }
+.vp-drawer-t { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 12.5px;
+  font-weight: 800; color: #8a6b45; border-bottom: 1px solid rgba(180, 160, 120, .22); }
+.vp-drawer-x { border: none; background: transparent; color: #a99d87; cursor: pointer; display: flex; }
+.vp-drawer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; padding: 10px; overflow-y: auto; }
+.vp-drawer-ep { border: 1px solid rgba(180, 160, 120, .35); background: #fff; color: #6f6552; font-size: 11.5px; padding: 6px 4px;
+  border-radius: 8px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.vp-drawer-ep:hover { border-color: #e8a25c; color: #a35f1e; }
+.vp-drawer-ep.on { background: linear-gradient(120deg, #e8a25c, #cf7a48); color: #fff; border-color: transparent; }
 </style>

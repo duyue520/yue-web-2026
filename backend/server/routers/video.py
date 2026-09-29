@@ -14,6 +14,8 @@
 import time
 import threading
 
+import concurrent.futures as _cf
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -34,10 +36,13 @@ SOURCES = {
     "量子": {"type": "mac", "detail": "https://cj.lziapi.com/api.php/provide/vod/",
              "referer": "https://cj.lziapi.com/",
              "caps": {"browse": True, "search": "wd"}},
+    "暴风": {"type": "mac", "detail": "https://bfzyapi.com/api.php/provide/vod/",
+             "referer": "https://bfzyapi.com/",
+             "caps": {"browse": False, "search": "wd"}},
 }
 DEFAULT_SRC = "主源"
 BROWSE_SRC = "量子"
-HOME_KEYWORDS = ["动作", "喜剧", "爱情", "科幻", "悬疑", "动漫"]   # 量子源 t= 过滤不可用，改用关键词驱动浏览
+HOME_KEYWORDS = ["电影", "电视剧", "动漫", "综艺", "动作", "喜剧"]   # 量子源 t= 过滤不可用，改用关键词驱动浏览
 
 _cache = {}
 _cache_lock = threading.Lock()
@@ -154,19 +159,21 @@ def home(request: Request):
     if cached is not None:
         return cached
     rows = []
-    try:
-        latest, _ = _mac_fetch(BROWSE_SRC, {"ac": "detail", "pg": 1}, 18)
-        if latest:
-            rows.append({"name": "🔥 最新更新", "kw": "", "items": latest})
-    except Exception:
-        pass
-    for kw in HOME_KEYWORDS:
-        try:
-            items, _ = _mac_fetch(BROWSE_SRC, {"ac": "detail", "wd": kw, "pg": 1}, 14)
-            if items:
-                rows.append({"name": kw, "kw": kw, "items": items})
-        except Exception:
-            continue
+    # 并行拉行（原来串行 7 次远端请求 → 现在并发，首屏 ~8s 降到 ~1.5s）
+    jobs = [("", {"ac": "detail", "pg": 1}, 18)] + [(k, {"ac": "detail", "wd": k, "pg": 1}, 14) for k in HOME_KEYWORDS]
+    with _cf.ThreadPoolExecutor(max_workers=7) as ex:
+        futs = []
+        for kw, params, size in jobs:
+            label = "🔥 最新更新" if not kw else kw
+            futs.append((label, kw, ex.submit(_mac_fetch, BROWSE_SRC, params, size)))
+        for label, kw, fut in futs:
+            try:
+                items, _ = fut.result(timeout=12)
+                if items:
+                    rows.append({"name": label, "kw": kw, "items": items})
+            except Exception:
+                continue
+    rows.sort(key=lambda r: 0 if not r["kw"] else 1)
     if not rows:
         raise HTTPException(502, detail={"message": "片源首页繁忙，稍后再试"})
     data = {"src": BROWSE_SRC,
@@ -224,22 +231,52 @@ def search(request: Request, kw: str, src: str = "all"):
     if cached is not None:
         return cached
     items, seen, ok = [], set(), []
-    for n in names:
-        try:
-            for it in _search_one(n, kw):
-                k = it["name"].strip()
-                if k in seen:
-                    continue
-                seen.add(k)
-                items.append(it)
-            ok.append(n)
-        except Exception:
-            continue
+    # 多源并行搜索（原来串行，源多后成倍变慢）
+    with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+        futs = [(n, ex.submit(_search_one, n, kw)) for n in names]
+        for n, fut in futs:
+            try:
+                for it in fut.result(timeout=15):
+                    k = it["name"].strip()
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    items.append(it)
+                ok.append(n)
+            except Exception:
+                continue
     if not items and not ok:
         raise HTTPException(502, detail={"message": "片源搜索服务繁忙，稍后再试"})
     data = {"kw": kw, "total": len(items), "list": items[:40], "sources": list(SOURCES.keys())}
     _cache_put(ck, data)
     return data
+
+
+def _probe_res(url: str) -> str:
+    """探测 m3u8 最高分辨率（只读前 ~32KB，短超时；失败返回空）。仅用于详情页标注画质。"""
+    if not url or ".m3u8" not in url:
+        return ""
+    try:
+        import re as _re
+        with httpx.Client(timeout=6, follow_redirects=True,
+                          headers={"User-Agent": "Mozilla/5.0 Chrome/131"}) as c:
+            with c.stream("GET", url) as r:
+                if r.status_code != 200:
+                    return ""
+                buf = ""
+                for chunk in r.iter_text():
+                    buf += chunk
+                    if len(buf) > 32768 or "EXT-X-ENDLIST" in buf:
+                        break
+        res = sorted({int(x) for x in _re.findall(r"RESOLUTION=\d+x(\d+)", buf)}, reverse=True)
+        if res:
+            return "%dP" % res[0]
+        bw = sorted({int(x) for x in _re.findall(r"BANDWIDTH=(\d+)", buf)}, reverse=True)
+        if bw:
+            return "%.1fM" % (bw[0] / 1000000.0)
+        return "SD" if buf.startswith("#EXTM3U") else ""
+    except Exception:
+        return ""
 
 
 def _fetch_detail(cfg, vid):
@@ -284,13 +321,14 @@ def detail(request: Request, id: str, src: str = DEFAULT_SRC, fallback: int = 1)
     if not lst:
         raise HTTPException(404, detail={"message": "各线路都没有这部片子，换个片名试试"})
     v = lst[0]
+    eps = _parse_eps(v.get("vod_play_url") or "")
     data = {"id": vid, "src": used_src, "tried": tried, "recovered": used_src != src_name,
             "name": v.get("vod_name") or "", "pic": v.get("vod_pic") or "",
             "year": v.get("vod_year") or "", "type": v.get("type_name") or "",
             "area": v.get("vod_area") or "", "remarks": v.get("vod_remarks") or "",
             "actor": v.get("vod_actor") or "", "director": v.get("vod_director") or "",
             "content": (v.get("vod_content") or "").strip()[:300],
-            "eps": _parse_eps(v.get("vod_play_url") or "")}
+            "eps": eps}
     _cache_put(ck, data)
     return data
 
@@ -412,6 +450,107 @@ def prog(payload: ProgIn, request: Request, user: User = Depends(get_optional_us
         {"u": user.id, "cap": MAX_PROG})
     db.commit()
     return {"ok": True}
+
+
+@router.get("/extra")
+def extra(request: Request, id: str, src: str = DEFAULT_SRC, name: str = ""):
+    """详情页异步补充：首集画质 + 同名其它线路候选（并行，不阻塞首屏）。"""
+    limit(request, "video_extra", 60, 60, "太快啦")
+    vid = "".join(ch for ch in (id or "") if ch.isdigit())[:12]
+    if not vid:
+        raise HTTPException(400, detail={"message": "id 不合法"})
+    src_name = src if src in SOURCES else DEFAULT_SRC
+    want = _clean_kw(name or "")
+    ck = "x1:%s:%s:%s" % (src_name, vid, want)
+    cached = _cache_get(ck)
+    if cached is not None:
+        return cached
+
+    def job_res():
+        try:
+            lst = _fetch_detail(SOURCES[src_name], vid)
+            eps = _parse_eps(lst[0].get("vod_play_url") or "") if lst else []
+            return _probe_res(eps[0]["url"]) if eps else ""
+        except Exception:
+            return ""
+
+    def job_alts():
+        out = []
+        if not want:
+            return out
+        for alt in [n for n in SOURCES if n != src_name]:
+            try:
+                cand = _search_one(alt, want)
+                for c0 in cand[:5]:
+                    cname = c0.get("name") or ""
+                    if want not in cname and cname not in want and _clean_kw(cname) != want:
+                        continue
+                    alst = _fetch_detail(SOURCES[alt], c0["id"])
+                    aeps = _parse_eps(alst[0].get("vod_play_url") or "") if alst else []
+                    if not aeps:
+                        continue
+                    out.append({"src": alt, "id": c0["id"], "name": alst[0].get("vod_name") or cname,
+                                "pic": alst[0].get("vod_pic") or c0.get("pic") or "",
+                                "epCount": len(aeps), "maxRes": _probe_res(aeps[0]["url"]),
+                                "remarks": alst[0].get("vod_remarks") or ""})
+                    break
+            except Exception:
+                continue
+        return out[:3]
+
+    with _cf.ThreadPoolExecutor(max_workers=2) as ex:
+        f1, f2 = ex.submit(job_res), ex.submit(job_alts)
+        max_res, alts = f1.result(timeout=12), f2.result(timeout=15)
+    data = {"maxRes": max_res, "alts": alts}
+    _cache_put(ck, data)
+    return data
+
+
+# ---------------- 缓存预热：后台线程每 8 分钟静默刷新首页（访客永远秒开） ----------------
+_warm_started = False
+
+
+def _warm_once():
+    try:
+        with _cf.ThreadPoolExecutor(max_workers=7) as ex:
+            jobs = [("", {"ac": "detail", "pg": 1}, 18)] + [(k, {"ac": "detail", "wd": k, "pg": 1}, 14) for k in HOME_KEYWORDS]
+            futs = []
+            for kw, params, size in jobs:
+                label = "🔥 最新更新" if not kw else kw
+                futs.append((label, kw, ex.submit(_mac_fetch, BROWSE_SRC, params, size)))
+            rows = []
+            for label, kw, fut in futs:
+                try:
+                    items, _ = fut.result(timeout=12)
+                    if items:
+                        rows.append({"name": label, "kw": kw, "items": items})
+                except Exception:
+                    continue
+        if rows:
+            rows.sort(key=lambda r: 0 if not r["kw"] else 1)
+            _cache_put("home:v5", {"src": BROWSE_SRC,
+                                   "homeTypes": [{"id": k, "name": k} for k in HOME_KEYWORDS],
+                                   "allTypes": _classes(BROWSE_SRC)[:40], "rows": rows})
+    except Exception:
+        pass
+
+
+def _warm_loop():
+    import time as _t
+    while True:
+        _warm_once()
+        _t.sleep(480)
+
+
+def start_warmer():
+    """由 main.py 启动时调用；线程托管在应用进程内，单线程 + 8 分钟一次，开销可忽略。"""
+    global _warm_started
+    if _warm_started:
+        return
+    _warm_started = True
+    import threading as _th
+    t = _th.Thread(target=_warm_loop, name="video-cache-warmer", daemon=True)
+    t.start()
 
 
 @router.get("/health")
