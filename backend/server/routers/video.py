@@ -15,6 +15,7 @@ import time
 import threading
 
 import concurrent.futures as _cf
+import re
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -591,6 +592,101 @@ def start_warmer():
     import threading as _th
     t = _th.Thread(target=_warm_loop, name="video-cache-warmer", daemon=True)
     t.start()
+
+
+# ---------------- 平台直搜（爱奇艺/优酷/B站）→ 交给解析线路播放，用户无需贴链接 ----------------
+def _search_iqiyi(kw):
+    with _client("https://www.iqiyi.com/") as c:
+        r = c.get("https://search.video.iqiyi.com/o", params={"if": "html5", "key": kw})
+        data = r.json().get("data") or {}
+    out = []
+    for d in (data.get("docinfos") or [])[:12]:
+        t = (d.get("title") or "").replace("<em>", "").replace("</em>", "").strip()
+        if not t:
+            continue
+        vid = d.get("videoId") or ""
+        aid = d.get("albumId") or (d.get("albumDocInfo") or {}).get("albumId") or ""
+        url = ("https://www.iqiyi.com/v_%s.html" % vid) if vid else ("https://www.iqiyi.com/a_%s.html" % aid if aid else "")
+        if not url:
+            continue
+        out.append({"platform": "爱奇艺", "name": t, "pic": d.get("imageUrl") or d.get("albumImageUrl") or "",
+                    "url": url, "note": (d.get("albumDocInfo") or {}).get("channel") or ""})
+    return out
+
+
+def _search_youku(kw):
+    with _client("https://www.youku.com/") as c:
+        r = c.get("https://search.youku.com/api/search", params={"keyword": kw})
+        j = r.json()
+    items = (((j.get("pageData") or {}).get("componentList")) or [])
+    out = []
+    for it in items:
+        if it.get("templateType") not in ("video", "ogc", "youku", None):
+            pass
+        vid = it.get("videoId") or it.get("id") or ""
+        t = (it.get("title") or "").strip()
+        if not vid or not t:
+            continue
+        out.append({"platform": "优酷", "name": t,
+                    "pic": it.get("poster") or it.get("img") or "",
+                    "url": "https://v.youku.com/v_show/id_%s.html" % vid, "note": it.get("subTitle") or ""})
+        if len(out) >= 12:
+            break
+    return out
+
+
+def _search_bilibili(kw):
+    try:
+        h = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131 Safari/537.36",
+             "Referer": "https://www.bilibili.com/", "Origin": "https://www.bilibili.com",
+             "Cookie": "buvid3=%s-1infoc" % __import__("uuid").uuid4().hex[:16]}
+        with httpx.Client(timeout=12, follow_redirects=True, headers=h) as c:
+            r = c.get("https://api.bilibili.com/x/web-interface/search/type",
+                      params={"search_type": "video", "keyword": kw})
+            j = r.json()
+        res = ((j.get("data") or {}).get("result")) or []
+        out = []
+        for x in res[:12]:
+            bv = x.get("bvid") or ""
+            if not bv:
+                continue
+            t = re.sub(r"<[^>]+>", "", x.get("title") or "").strip()
+            pic = x.get("pic") or ""
+            if pic.startswith("//"):
+                pic = "https:" + pic
+            out.append({"platform": "B站", "name": t, "pic": pic,
+                        "url": "https://www.bilibili.com/video/%s" % bv, "note": x.get("author") or ""})
+        return out
+    except Exception:
+        return []
+
+
+@router.get("/platform")
+def platform(request: Request, kw: str):
+    """平台聚合搜索：返回各平台视频页链接（前端交给解析线路直接播放，无需用户贴链接）。"""
+    limit(request, "video_platform", 30, 60, "太快啦")
+    kw = (kw or "").strip()[:40]
+    if not kw:
+        raise HTTPException(400, detail={"message": "请输入片名"})
+    ck = "pf1:" + kw
+    cached = _cache_get(ck)
+    if cached is not None:
+        return cached
+    res, ok_pf = [], []
+    with _cf.ThreadPoolExecutor(max_workers=3) as ex:
+        futs = [("爱奇艺", ex.submit(_search_iqiyi, kw)), ("优酷", ex.submit(_search_youku, kw)),
+                ("B站", ex.submit(_search_bilibili, kw))]
+        for name, fut in futs:
+            try:
+                got = fut.result(timeout=14)
+                if got:
+                    ok_pf.append(name)
+                    res.extend(got)
+            except Exception:
+                continue
+    data = {"kw": kw, "total": len(res), "platforms": ok_pf, "list": res[:30]}
+    _cache_put(ck, data)
+    return data
 
 
 @router.get("/health")

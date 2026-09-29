@@ -26,7 +26,27 @@
         </transition>
 
         <!-- ==================== VIP 解析 ==================== -->
-        <div v-if="view === 'vip'" class="vp-body">
+        <div v-if="view === 'platform' && platItem" class="vp-body">
+          <div class="vp-lhead">
+            <span class="vp-ltitle">{{ platItem.name }}</span>
+            <span class="vp-lcount">{{ platItem.platform }}</span>
+            <button class="vp-btn" style="margin-left:auto" @click="view = 'search'"><v-icon size="14">mdi-arrow-left</v-icon>返回结果</button>
+          </div>
+          <div class="vp-tip"><v-icon size="14">mdi-information-outline</v-icon>已自动用解析线路播放；画面不动就点别的线路（高画质线路已排在前面）</div>
+          <div class="vp-lines">
+            <button v-for="l in parseLines" :key="l.name" class="vp-line-chip" :class="{ on: platLine && platLine.name === l.name }" @click="platLine = l; playPlatform()">{{ l.name }}</button>
+          </div>
+          <div class="vp-player-wrap">
+            <iframe v-if="platSrc" class="vp-frame" :src="platSrc" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
+            <div v-else class="vp-loading"><div class="vp-spin"></div><p>正在解析…</p></div>
+          </div>
+          <div class="vp-actions" style="margin-top:10px">
+            <a class="vp-btn" :href="platItem.url" target="_blank" rel="noopener">原站打开</a>
+            <button class="vp-btn" @click="openInSystem()">用系统播放器打开</button>
+          </div>
+        </div>
+
+        <div v-else-if="view === 'vip'" class="vp-body">
           <div class="vp-tip"><v-icon size="14">mdi-information-outline</v-icon>粘贴爱奇艺 / 腾讯 / 优酷 / 芒果 / B站链接，选线路播放；卡顿就换别的线路</div>
           <div class="vp-search">
             <v-icon size="18" class="vp-search-ico">mdi-link-variant</v-icon>
@@ -160,6 +180,25 @@
               <div class="vp-line">{{ r.name }}</div>
             </div>
           </div>
+          <div v-if="platList.length" class="vp-pfwrap">
+            <div class="vp-pfhead">
+              <v-icon size="14">mdi-television-play</v-icon>
+              平台直搜（点一下自动解析播放，无需贴链接）
+              <span class="vp-pftag">{{ platNames }}</span>
+            </div>
+            <div class="vp-grid">
+              <div v-for="(p, i) in platList" :key="'pf' + i" class="vp-card" @click="openPlatform(p)">
+                <div class="vp-poster" :style="p.pic ? { backgroundImage: `url(${p.pic})` } : {}">
+                  <span v-if="!p.pic" class="vp-noimg">无封面</span>
+                  <span class="vp-grad"></span>
+                  <span class="vp-src">{{ p.platform }}</span>
+                  <span class="vp-play-ico"><v-icon size="30">mdi-play-circle</v-icon></span>
+                </div>
+                <div class="vp-line">{{ p.name }}</div>
+              </div>
+            </div>
+          </div>
+
           <div v-else class="vp-empty err">
             <span class="vp-empty-orb"><v-icon size="32">mdi-movie-off-outline</v-icon></span>
             <p>没搜到「{{ lastKw }}」<br><small>换个片名，或点下方按钮重试</small></p>
@@ -217,7 +256,9 @@
           </transition>
 
           <div class="vp-player-wrap">
-            <video v-show="!useFallback" ref="videoEl" class="vp-video" controls playsinline
+            <iframe v-show="playMode === 'parse' && parseSrcUrl" class="vp-frame" :src="parseSrcUrl"
+                    allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
+            <video v-show="playMode === 'direct' && !useFallback" ref="videoEl" class="vp-video" controls playsinline
                      @ended="onEnded" @play="playing = true; needTap = false" @pause="playing = false"
                      @dblclick="toggleFs"></video>
             <div v-if="!useFallback && curEp" class="vp-pctl">
@@ -247,7 +288,10 @@
               </div>
             </transition>
             <iframe v-show="useFallback && fallbackSrc" class="vp-frame" :src="fallbackSrc" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
-            <div v-if="loadingEp" class="vp-loading"><div class="vp-spin"></div><p>{{ loadMsg }}</p></div>
+            <div v-if="loadingEp" class="vp-loading"><div class="vp-spin"></div>
+              <p>{{ loadMsg }}</p>
+              <p v-if="recoverTip" class="vp-diag">{{ recoverTip }}</p>
+            </div>
             <button v-if="needTap && !loadingEp" class="vp-tap" @click="tapPlay">
               <v-icon size="30">mdi-play-circle-outline</v-icon>
               <span>点击播放</span>
@@ -276,6 +320,21 @@
           </div>
 
           <div class="vp-ctl">
+            <div class="vp-now">
+              <button :class="['vp-qchip', { on: playMode === 'parse' }]" @click="switchMode('parse')">解析播放</button>
+              <button :class="['vp-qchip', { on: playMode === 'direct' }]" @click="switchMode('direct')">直连播放</button>
+              <label v-if="playMode === 'parse'" class="vp-auto" title="一条线路播不出来就自动切下一条">
+                <input type="checkbox" v-model="autoRotate" @change="autoRotate ? startRotate() : stopRotate()" /> 自动换线路
+              </label>
+              <span v-if="playMode === 'parse' && autoRotate" class="vp-rothint">正在自动轮换中，看到画面请取消勾选</span>
+              <label v-if="playMode === 'parse'" class="vp-auto" title="一条线路播不出来就自动切下一条">
+                <input type="checkbox" v-model="autoRotate" @change="autoRotate ? startRotate() : stopRotate()" /> 自动换线路
+              </label>
+              <span v-if="playMode === 'parse' && autoRotate" class="vp-rothint">正在自动轮换中，看到画面请取消勾选</span>
+              <span v-if="playMode === 'parse'" class="vp-qwrap">
+                <button v-for="l in parseLines" :key="l.name" :class="['vp-qchip', { on: parseLine && parseLine.name === l.name }]" @click="useParseLine(l)">{{ l.name }}</button>
+              </span>
+            </div>
             <div class="vp-now">
               <span v-if="curEp">▶ {{ curEp.name }}</span>
               <template v-if="detail.eps.length > 1">
@@ -346,14 +405,29 @@ export default {
       _hls: null, _retriedLevel: false, _progTimer: 0, _lastProgPush: 0,
       altOpen: false, nextCount: 0, nextTimer: null, _epTimer: 0, _keyHandler: null,
       qualityHint: '',
+      // 线路表：合并两个油猴脚本（video_vip 3.2.6 + 全网VIP 3.1）去重，实测 m3u8 可用的排前面（高清优先）
       parseLines: [
-        { name: '虾米', url: 'https://jx.xmflv.com/?url=' },
-        { name: 'HLS', url: 'https://jx.hls.one/?url=' },
-        { name: 'fongmi', url: 'https://json.fongmi.cc/web?url=' },
-        { name: 'playm3u8', url: 'https://www.playm3u8.cn/jiexi.php?url=' },
+        { name: '①playm3u8·高清', url: 'https://www.playm3u8.cn/jiexi.php?url=' },
+        { name: '②TXNQ', url: 'https://bfq.txnp.cn/player?url=' },
+        { name: '③七哥·高清', url: 'https://jx.202617.xyz/tv.php?url=' },
+        { name: '④冰豆', url: 'https://bd.jx.cn/?url=' },
+        { name: '⑤CK', url: 'https://www.ckplayer.vip/jiexi/?url=' },
+        { name: '⑥Player-JY', url: 'https://jx.playerjy.com/?url=' },
+        { name: '⑦邦宁云', url: 'https://video.isyour.love/player/getplayer?url=' },
+        { name: '⑧虾米', url: 'https://jx.xmflv.com/?url=' },
+        { name: '⑨HLS', url: 'https://jx.hls.one/?url=' },
+        { name: '⑩小云·高清', url: 'https://jx.xymp4.cc/?url=' },
+        { name: '⑪七七云', url: 'https://jx.77flv.cc/?url=' },
+        { name: '⑫fongmi', url: 'https://json.fongmi.cc/web?url=' },
+        { name: '⑬789解析', url: 'https://jiexi.789jiexi.icu:4433/?url=' },
+        { name: '⑭花旗', url: 'https://www.huaqi.live/?url=' },
+        { name: '⑮Yparse', url: 'https://jx.yparse.com/index.php?url=' },
+        { name: '⑯极速', url: 'https://jx.2s0.cn/player/?url=' },
       ],
       playing: false, epDrawer: false, autoFs: true, needTap: false, _HlsMod: null,
-      epPage: 1, epJump: null, playDiag: '',
+      playMode: 'parse', parseLine: null, parseSrcUrl: '', autoRotate: true, _rotateTimer: null, _rotateIdx: 0, autoRotate: true, _rotateTimer: null, _rotateIdx: 0,
+      epPage: 1, epJump: null, playDiag: '', recoverTip: '',
+      platList: [], platNames: '', platItem: null, platLine: null, platSrc: '', recoverTip: '',
     };
   },
   computed: {
@@ -444,7 +518,9 @@ export default {
       fetch('/api/video/prog', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
         body: JSON.stringify({ name, src: pr.src || '', vod_id: pr.id || '', pic: pr.pic || '', ep: pr.ep || 0, pos: pr.t || 0 }) }).catch(() => {});
     },
-    close() { this.visible = false; this.stopPlay(); },
+    close() { this.visible = false; this.stopPlay(); this.stopRotate(); },
+    setRecoverTip(t) { this.recoverTip = t; setTimeout(() => { this.recoverTip = ''; }, 6000); },
+    setRecoverTip(t) { this.recoverTip = t; setTimeout(() => { this.recoverTip = ''; }, 6000); },
     showToast(msg, ms) {
       this.toast = msg;
       clearTimeout(this._toastTimer);
@@ -505,6 +581,32 @@ export default {
     },
     closeSugSoon() { setTimeout(() => { this.sugOpen = false; }, 160); },
     quickSearch(w) { this.kw = w; this.sugOpen = false; this.doSearch(); },
+    async loadPlatform(kw) {
+      this.platList = []; this.platNames = '';
+      try {
+        const d = await this.fetchJSON('/api/video/platform?kw=' + encodeURIComponent(kw), 2);
+        this.platList = d.list || [];
+        this.platNames = (d.platforms || []).join(' / ');
+      } catch (e) { this.platList = []; }
+    },
+    openPlatform(p) {
+      this.platItem = p;
+      this.platLine = this.parseLines[0];
+      this.platSrc = '';
+      this.view = 'platform';
+      this.stopPlay();
+      this.playPlatform();
+    },
+    playPlatform() {
+      if (!this.platItem) return;
+      const l = this.platLine || this.parseLines[0];
+      this.platLine = l;
+      this.platSrc = l.url + encodeURIComponent(this.platItem.url);
+      this.showToast('已用「' + l.name + '」解析播放');
+    },
+    openInSystem() {
+      if (this.platItem) window.open(this.platItem.url, '_blank');
+    },
     remember(kw) {
       this.recent = [kw].concat(this.recent.filter((x) => x !== kw)).slice(0, 6);
       try { localStorage.setItem('wb_video_recent', JSON.stringify(this.recent)); } catch (e) {}
@@ -521,6 +623,7 @@ export default {
         if (this.bestSrc) list = list.slice().sort((a, b) => (b.src === this.bestSrc) - (a.src === this.bestSrc));
         this.results = list;
         this.remember(kw);
+        this.loadPlatform(kw);
       } catch (e) { this.results = []; this.showToast('搜索失败，可点「再试一次」'); }
       this.searching = false;
     },
@@ -564,6 +667,7 @@ export default {
         this.detail = d;
         this.curIdx = -1; this.curEp = null; this.useFallback = false; this.fallbackSrc = '';
         this.qualities = []; this.curLevel = -1;
+        this._recoverStep = 0;
         if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」，片名：' + d.name);
         else if (r.name && this.normName(d.name) !== this.normName(r.name)) {
           this.showToast('注意：该线路返回的片名是「' + d.name + '」，与你点的「' + r.name + '」不同，请确认后再看', 5200);
@@ -698,6 +802,54 @@ export default {
       const v = this.$refs.videoEl;
       if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {} }
     },
+    switchMode(m) {
+      this.playMode = m;
+      if (m === 'parse') {
+        this.useParseLine(this.parseLine || this.parseLines[0]);
+      } else {
+        this.stopRotate();
+        this.playEp(this.curIdx >= 0 ? this.curIdx : 0, true);
+      }
+    },
+    startRotate() {
+      this.stopRotate();
+      this._rotateTimer = setInterval(() => {
+        if (this.playMode !== 'parse') { this.stopRotate(); return; }
+        this._rotateIdx = (this._rotateIdx + 1) % this.parseLines.length;
+        const l = this.parseLines[this._rotateIdx];
+        this.parseLine = l;
+        const ep = this.curEp || (this.detail && this.detail.eps && this.detail.eps[0]);
+        if (ep) this.parseSrcUrl = l.url + encodeURIComponent(ep.url);
+        this.showToast('自动切换到「' + l.name + '」（看到画面请取消勾选）', 2600);
+      }, 8000);
+    },
+    stopRotate() {
+      if (this._rotateTimer) { clearInterval(this._rotateTimer); this._rotateTimer = null; }
+    },
+    startRotate() {
+      this.stopRotate();
+      this._rotateTimer = setInterval(() => {
+        if (this.playMode !== 'parse') { this.stopRotate(); return; }
+        this._rotateIdx = (this._rotateIdx + 1) % this.parseLines.length;
+        const l = this.parseLines[this._rotateIdx];
+        this.parseLine = l;
+        const ep = this.curEp || (this.detail && this.detail.eps && this.detail.eps[0]);
+        if (ep) this.parseSrcUrl = l.url + encodeURIComponent(ep.url);
+        this.showToast('自动切换到「' + l.name + '」（看到画面请取消勾选）', 2600);
+      }, 8000);
+    },
+    stopRotate() {
+      if (this._rotateTimer) { clearInterval(this._rotateTimer); this._rotateTimer = null; }
+    },
+    useParseLine(l) {
+      this.parseLine = l;
+      const ep = this.curEp || (this.detail && this.detail.eps && this.detail.eps[0]);
+      if (!ep) { this.showToast('先选一集再换线路'); return; }
+      this.useFallback = false;
+      this.parseSrcUrl = l.url + encodeURIComponent(ep.url);
+      this.playMode = 'parse';
+      this.showToast('已用「' + l.name + '」解析播放');
+    },
     async playEp(i, userGesture) {
       if (!this.detail || !this.detail.eps[i]) return;
       if (this.nextTimer) { clearInterval(this.nextTimer); this.nextTimer = null; }
@@ -706,6 +858,21 @@ export default {
       this.curEp = this.detail.eps[i];
       this.playErr = ''; this.useFallback = false; this.fallbackSrc = '';
       this._retriedLevel = false;
+      this._recoverStep = 0;
+      // 默认用解析线路播放（用户要求：点卡片就用解析线路）
+      this.parseLine = this.parseLine || this.parseLines[0];
+      this.parseSrcUrl = this.parseLine.url + encodeURIComponent(this.curEp.url);
+      if (this.playMode === 'parse') {
+        this.loadingEp = false;
+        this.showToast('已用「' + this.parseLine.name + '」解析播放' + (this.autoRotate ? '（自动换线路已开启）' : ''), 3600);
+        if (this.autoRotate) this.startRotate(); else this.stopRotate();
+        clearTimeout(this._stallTimer);
+        this._stallTimer = setTimeout(() => {
+          const v = this.$refs.videoEl;
+          if (this.playMode === 'direct' && v && v.paused && (v.currentTime || 0) < 0.2 && !this.useFallback) this.autoRecover();
+        }, 8000);
+        return;
+      }
       this.loadingEp = true; this.loadMsg = '正在建立直连…';
       this.dbg({ playEp: this.curEp.url.slice(0, 90), hlsMod: !!this._HlsMod });
       // 关键：点击路径里不做 await（否则浏览器用户手势失效，play() 会被静默拒绝）
@@ -719,7 +886,7 @@ export default {
         if (v && v.paused && (v.currentTime || 0) < 0.2 && !this.useFallback) {
           this.autoRecover();
         }
-      }, 12000);
+      }, 8000);
       if (userGesture && this.autoFs) {
         // 用户点击播放 → 直接全屏（市面播放器习惯）
         try {
@@ -841,7 +1008,13 @@ export default {
             return true;
           }
           if (Hls.isSupported()) {
-            const hls = new Hls({ maxBufferLength: 40, manifestLoadingTimeOut: 15000, fragLoadingMaxRetry: 4 });
+            const hls = new Hls({
+              maxBufferLength: 40,
+              manifestLoadingTimeOut: 6000, manifestLoadingMaxRetry: 1,   // 死节点快速失败
+              levelLoadingTimeOut: 6000, levelLoadingMaxRetry: 1,
+              fragLoadingTimeOut: 9000, fragLoadingMaxRetry: 2,
+              startLevel: -1,
+            });
             this._hls = hls;
             this.qualities = []; this.curLevel = -1;
             hls.on(Hls.Events.MANIFEST_PARSED, (e, d) => {
@@ -906,22 +1079,36 @@ export default {
         return (s > 5 && s < 86400) ? s : 0;
       } catch (e) { return 0; }
     },
-    recoverPlay(auto) {
+    recoverPlay() {
+      // 全自动阶梯：① 备用播放器 ② 同名换源 ③ 解析线路 ④ 换源+解析 ⑤ 提示手动
       this.playErr = '';
-      if (this.curEp && !this.fallbackSrc) this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(this.curEp.url);
-      if (this.fallbackSrc) {
+      const step = (this._recoverStep || 0) + 1;
+      this._recoverStep = step;
+      if (step === 1 && this.curEp) {
+        this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(this.curEp.url);
         this.useFallback = true;
-        this.showToast('直连不可用，已自动切换到备用播放器');
+        this.showToast('线路① 直连不稳 → 已切备用播放器');
         return;
       }
-      const i = (this._parseIdx || 0) % this.parseLines.length;
-      this._parseIdx = i + 1;
-      if (this.curEp) {
-        this.playViaParser(this.parseLines[i]);
-        if (auto) this.showToast('已自动切换解析线路：' + this.parseLines[i].name);
+      if (step === 2) {
+        const pool = (this.results.length ? this.results : this.listItems) || [];
+        const others = pool.filter((x) => x.name === (this.detail && this.detail.name) && x.src !== (this.detail && this.detail.src));
+        if (others.length) {
+          this.showToast('线路② 正在换到「' + others[0].src + '」同名线路…');
+          this.useFallback = false;
+          this.fallbackSrc = '';
+          this.openDetail(others[0]);
+          return;
+        }
+      }
+      if (step >= 3 && step <= 3 + this.parseLines.length - 1 && this.curEp) {
+        const l = this.parseLines[(step - 3) % this.parseLines.length];
+        this.playViaParser(l);
+        this.showToast('线路③ 解析线路：' + l.name);
         return;
       }
-      this.switchSource();
+      this.playErr = '所有自动线路都试过了，请点「换源」或稍后再试';
+      this.showToast('自动切换已尝试全部线路');
     },
     // 播放卡住/失败 → 全自动恢复（原生 → 备用播放器 → 解析线路 → 换源），用户零操作
     autoRecover() {
@@ -929,6 +1116,7 @@ export default {
       this._autoRecovering = true;
       this.loadingEp = true;
       this.loadMsg = '直连不稳定，正在自动切换线路…';
+      this.setRecoverTip('已尝试：直连 → 备用播放器 → 同名换源 → 解析线路（最多 5 步）');
       setTimeout(() => {
         this.loadingEp = false;
         this.recoverPlay(true);
@@ -1254,4 +1442,12 @@ export default {
 
 .vp-tab.ghost { opacity: .62; font-size: 11.5px; padding: 6px 11px; }
 .vp-tab.ghost:hover { opacity: 1; }
+
+.vp-pfwrap { margin-top: 18px; border-top: 1px dashed rgba(180, 160, 120, .35); padding-top: 12px; }
+.vp-pfhead { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: #8a6b45; margin-bottom: 10px; }
+.vp-pftag { margin-left: auto; font-size: 11px; font-weight: 600; color: #a99d87; }
+
+.vp-rothint { font-size: 11px; color: #b0672a; }
+
+.vp-rothint { font-size: 11px; color: #b0672a; }
 </style>
