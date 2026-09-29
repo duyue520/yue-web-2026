@@ -15,6 +15,12 @@ router = APIRouter(prefix="/api/blog", tags=["博客"])
 SITE_AUTHOR = "越"
 
 
+def _author_display(a):
+    """作者显示：转载文章显示来源，原创显示站主人设名。"""
+    s = (getattr(a, "source", "") or "").strip()
+    return s if s else _author_name(a.user)
+
+
 def _author_name(u):
     return SITE_AUTHOR if u else ""
 
@@ -31,6 +37,7 @@ class BlogArticle(Base):
     content = Column(Text, nullable=False)
     summary = Column(String(500), default="")
     cover_url = Column(String(500), default="")
+    source = Column(String(160), default="")  # 转载来源（空=原创）
     category_id = Column(Integer, ForeignKey("blog_categories.id"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     views = Column(Integer, default=0)
@@ -73,7 +80,7 @@ def list_articles(skip: int=0, limit:int=20, category:str="", db:Session=Depends
         "id":a.id,"title":a.title,"summary":a.summary or a.content[:200],
         "content":a.content[:300],"cover_url":a.cover_url or "",
         "category":a.category.name if a.category else "",
-        "author":_author_name(a.user),"views":a.views,
+        "author":_author_display(a),"source":(a.source or ""),"views":a.views,
         "created_at":a.created_at.strftime("%Y-%m-%d %H:%M")} for a in articles]}
 
 @router.get("/articles/{aid}")
@@ -84,7 +91,7 @@ def get_article(aid:int, db:Session=Depends(get_db)):
     comments=db.query(BlogComment).filter(BlogComment.article_id==aid).order_by(BlogComment.created_at).all()
     return {"id":a.id,"title":a.title,"content":a.content,"cover_url":a.cover_url or "",
         "category":a.category.name if a.category else "",
-        "author":_author_name(a.user),"views":a.views,"created_at":a.created_at.strftime("%Y-%m-%d %H:%M"),
+        "author":_author_display(a),"source":(a.source or ""),"views":a.views,"created_at":a.created_at.strftime("%Y-%m-%d %H:%M"),
         "comments":[{"id":c.id,"content":c.content,"author":_author_name(c.user),"created_at":c.created_at.strftime("%m-%d %H:%M")} for c in comments]}
 
 @router.post("/articles")
