@@ -18,13 +18,16 @@ if [ -f "assets/$IDX" ]; then
 else
   echo "  MISS 主分块 $IDX"; MISS=$((MISS+1))
 fi
-VP=$(grep -o "VideoPage-[A-Za-z0-9_-]*\.js" "assets/$IDX" 2>/dev/null | head -1)
-if [ -n "$VP" ] && [ -f "assets/$VP" ]; then
-  echo "  VideoPage OK: $VP ($(stat -c%s "assets/$VP") 字节)"
-  check_ref "assets/$VP"
-else
-  echo "  MISS VideoPage 分块($VP)"; MISS=$((MISS+1))
-fi
-HLS=$(grep -o "hls-[A-Za-z0-9_-]*\.js" "assets/$VP" 2>/dev/null | head -1)
-[ -n "$HLS" ] && { [ -f "assets/$HLS" ] && echo "  hls OK: $HLS" || { echo "  MISS hls $HLS"; MISS=$((MISS+1)); }; }
+# 懒加载分块：主分块里引用的所有哈希分块都必须存在（含/不含影视都适用）
+for chunk in $(grep -oE "[A-Za-z0-9_.]+-[A-Za-z0-9_-]{8}\.js" "assets/$IDX" | sort -u); do
+  [ "$chunk" = "$IDX" ] && continue
+  if [ -f "assets/$chunk" ]; then
+    echo "  懒加载分块 OK: $chunk"
+  else
+    # 有些引用是运行时代码字符串，不是真分块；只在 assets 里存在同名前缀产物时才算缺失
+    if ls assets/ 2>/dev/null | grep -q "^${chunk%%-*}-"; then
+      echo "  MISS $chunk"; MISS=$((MISS+1))
+    fi
+  fi
+done
 if [ "$MISS" = "0" ]; then echo "VERIFY_OK 资源完整"; else echo "VERIFY_FAILED 缺 $MISS 个资源（会导致白屏/功能缺失）"; exit 1; fi

@@ -16,7 +16,6 @@ const polarchart = defineAsyncComponent(() => import('./components/polarchart.vu
 const ApproveDialog = defineAsyncComponent(() => import('./components/ApproveDialog.vue'));
 const AiChat = defineAsyncComponent(() => import('./components/AiChat.vue'));
 const AiGateway = defineAsyncComponent(() => import('./components/AiGateway.vue'));
-const VideoPage = defineAsyncComponent(() => import('./components/VideoPage.vue'));
 import config from './config.js';
 import { getCookie } from './utils/cookieUtils.js';
 import { setMeta,getFormattedTime,getFormattedDate,dataConsole } from './utils/common.js';
@@ -25,7 +24,7 @@ import api from './services/api.js'
 
 export default {
   components: {
-    AiChat,AiGateway,VideoPage,
+    AiChat,AiGateway,
     tab1,tab2,loader,homeright,polarchart,DiseaseMain,LoginGate,ProfileDialog,Guestbook,MusicDialog,BlogPage,ParticleLayer,ApproveDialog,ApproveDialog
   },
   setup() {
@@ -332,8 +331,6 @@ export default {
         }
       } else if (window.location.hash === '#aigw') {
         this.openAiGateway();
-      } else if (window.location.hash === '#video') {
-        this.openVideoPage();
       }
     },
     onGateDone(result) {
@@ -382,17 +379,10 @@ export default {
       } else if (action === 'aigw') {
         window.location.hash = '#aigw';
         this.openAiGateway();
-      } else if (action === 'video') {
-        window.location.hash = '#video';
-        this.openVideoPage();
       }
     },
     async openAiGateway() {
       const c = await this.waitRef('aiGateway');
-      if (c && c.open) c.open();
-    },
-    async openVideoPage() {
-      const c = await this.waitRef('videoPage');
       if (c && c.open) c.open();
     },
     handleCancel(){

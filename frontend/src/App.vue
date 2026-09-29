@@ -306,7 +306,6 @@
     <BlogPage ref="blogPage" />
     <ApproveDialog ref="approveDialog" />
     <AiGateway ref="aiGateway" :avatar="configdata.avatar" />
-    <VideoPage ref="videoPage" />
   </v-app>
 </template>
 
