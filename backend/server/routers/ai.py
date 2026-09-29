@@ -98,7 +98,8 @@ async def ai_chat(request: Request, payload: ChatIn, user: User = Depends(get_op
         limit(request, "ai_chat_g", 6, 3600, "登录后可以多聊几句哦")
 
     _gc_sessions()
-    sid = payload.session_id or uuid.uuid4().hex[:16]
+    # 登录用户强制一会话一账号；游客沿用客户端会话 id
+    sid = ("u%d" % user.id) if user else (payload.session_id or uuid.uuid4().hex[:16])
     sess = _SESSIONS.setdefault(sid, {"msgs": [], "ts": time.time()})
     sess["ts"] = time.time()
 

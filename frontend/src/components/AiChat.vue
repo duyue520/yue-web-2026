@@ -107,7 +107,7 @@ export default {
       status: { enabled: false, name: '越的分身' },
       typed: '',
       typing: false,
-      chips: ['这个网站能做什么？', '叶片发黄怎么办？', '站里的音乐怎么搜？', '你会写代码吗？'],
+      chips: ['这个网站能做什么？', '叶片发黄怎么办？', '校园跑跑不完怎么办？', '网课太多刷不完？'],
       _abort: null, _t: null,
     };
   },
@@ -172,7 +172,7 @@ export default {
       if (this.typed || this.msgs.length) return;
       const full = this.context
         ? `关于「${this.context.slice(0, 18)}」，想了解什么？`
-        : '我是越的分身，这个站、叶片病害、代码都可以问我。';
+        : '我是越的分身豆包，在校大二学生，一位学习者。站里的功能、叶片病害、代码都可以问我～';
       this.typing = true;
       let i = 0;
       clearInterval(this._t);
@@ -194,15 +194,29 @@ export default {
       });
     },
     stopStream() { try { this._abort?.abort(); } catch (e) {} this.busy = false; this.streaming = false; },
+    onLogout() {
+      try {
+        const u = JSON.parse(localStorage.getItem('disease_user') || 'null');
+        if (u && u.id) this.sessionId = 'u' + u.id;
+      } catch (e) {}
+      this.reset();
+    },
+
     reset() {
       this.stopStream();
       this.msgs = []; this.typed = ''; this.context = '';
+      if (this.sessionId) {
+        fetch('/api/ai/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: this.sessionId }) }).catch(() => {});
+      }
       this.sessionId = '';
       try { localStorage.removeItem('wb_ai_sid'); } catch (e) {}
-      fetch('/api/ai/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
     },
 
     async send(text) {
+      try {
+        const u = JSON.parse(localStorage.getItem('disease_user') || 'null');
+        if (u && u.id) this.sessionId = 'u' + u.id;  // 一账号一会话
+      } catch (e) {}
       const content = (text ?? this.draft).trim();
       if (!content || this.busy) return;
       if (!this.curModel.enabled) {
