@@ -112,6 +112,7 @@ const config = {
 		{ go: "🐱 体验", img: "/img/salarycat.webp", title: "月薪喵", subtitle: "三只猫咪·烟花·音乐", text: "三只猫咪呼吸缩放，漫天烟花绽放，还有暖心话语和音乐！", url: "/salarycat/index.html", show: false },
 		{ go: "✍️ 写文章", img: "/img/4.webp", title: "博客", subtitle: "写文章·分享知识", text: "Markdown写文章，分类归档，读者评论互动。", action: "blog", show: false },
 		{ go: "🌿 诊断", img: "/img/disease_card.jpg", title: "叶片病害诊断", subtitle: "AI智能识别39种作物病害", text: "拍照上传叶片照片，模型秒级识别病害类型，附带防治建议、热力图和严重度评估，支持手机拍照和批量导出！", action: "disease", show: false },
+		{ go: "🍿 观影", img: "/img/2.webp", title: "影视库", subtitle: "搜片即看 · 多线路解析", text: "全网片源搜索：搜剧名直接看，支持选集、多解析线路；还能贴爱奇艺/腾讯/优酷链接一键解析。片源来自互联网公开分享，本站不存储视频、不走服务器流量。", action: "video", show: false },
 		{ go: "🔑 接入", img: "/img/avatar.webp", title: "AI 开放接口", subtitle: "OpenAI 兼容 · 自助密钥", text: "本站自建 AI 网关：豆包网页版、ChatGPT 网页号池多账号自动轮换。创建自己的 sk- 密钥，用任意 OpenAI SDK / 客户端调用，还可在站内直接试用！", action: "aigw", show: false },
 		{ go: "🏫 云游", img: "/img/campus.webp", title: "人文 · 云游校园", subtitle: "湖南人文科技学院 · 三维漫游", text: "浏览器里的三维校园漫游：校园边界取自 OpenStreetMap，36 栋建筑体量由公开卫星影像人工判读估算。另有 6 处按官网照片重建的外观研究模型（东大门、图书馆、致远楼、体育馆、逸夫艺术馆、养根楼），以及 23 组实景照片档案。体量为影像判读的简化描绘、非测绘成果，楼名未与校方逐一核实。", url: "/campus/", show: false },
 		{ go: "🏮 观卷", img: "/img/qingming.webp", title: "汴河图卷", subtitle: "宋代水市聚落生成器", text: "一个 HTML 文件点开就能玩的北宋汴河河市生成器。每点一次「重绘」就换一座城：河路正交、门朝道路、农田近水近路、主路立牌坊、树在水边与边缘加密。夯土墙、赭木、青瓦，朱红只用在虹桥；63 draw call 内跑完 30 栋建筑与 193 人。", url: "/qingming/", show: false },

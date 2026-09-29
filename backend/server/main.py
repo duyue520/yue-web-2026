@@ -23,7 +23,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .database import init_db
-from .routers import auth, predict, feedback, export as export_router, guestbook, blog, music, ai, airelay
+from .routers import auth, predict, feedback, export as export_router, guestbook, blog, music, ai, airelay, video
 from .config import CORS_ORIGINS
 
 
@@ -109,6 +109,7 @@ app.include_router(blog.router)
 app.include_router(music.router)
 app.include_router(ai.router)
 app.include_router(airelay.router)
+app.include_router(video.router)
 
 
 @app.get("/")

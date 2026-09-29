@@ -14,6 +14,7 @@
   "dependencies": {
     "@mdi/font": "^7.4.47",
     "chart.js": "^4.4.7",
+    "hls.js": "^1.7.3",
     "less": "^4.2.0",
     "three": "^0.186.0",
     "typeit": "^8.8.7",
