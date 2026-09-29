@@ -85,6 +85,21 @@ def _parse_eps(play_url: str):
     return out
 
 
+def _norm_title(s: str) -> str:
+    """片名归一化：去标点/空格/季集标记，用于严格同名判定。"""
+    import re as _re
+    t = (s or "").strip().lower()
+    t = _re.sub(r"[《》【】\[\]()（）:：·、,，。.!！?？'\"“”‘’\-—_\s]+", "", t)
+    t = _re.sub(r"(第[0-9一二三四五六七八九十]+[季部集])$", "", t)
+    return t
+
+
+def _strict_same(a: str, b: str) -> bool:
+    """严格同名：归一化后完全相等，才允许自动换源/兜底，防止放错片。"""
+    na, nb = _norm_title(a), _norm_title(b)
+    return bool(na) and na == nb
+
+
 def _clean_kw(name: str) -> str:
     import re as _re
     s = _re.sub(r"[《》【】\[\]()（）:：·、,，!！?？'\"]", " ", name or "")
@@ -303,21 +318,29 @@ def detail(request: Request, id: str, src: str = DEFAULT_SRC, fallback: int = 1)
     except Exception:
         tried.append(src_name + "(失败)")
     if fallback and ((not lst) or (not _parse_eps(lst[0].get("vod_play_url") or ""))):
-        want = _clean_kw(lst[0].get("vod_name") if lst else "")
-        for alt in [n for n in SOURCES if n != src_name]:
-            try:
-                cand = _search_one(alt, want) if want else []
-                if not cand:
+            want_full = (lst[0].get("vod_name") if lst else "") or ""
+            want = _clean_kw(want_full)
+            for alt in [n for n in SOURCES if n != src_name]:
+                try:
+                    cand = _search_one(alt, want) if want else []
+                    hit = None
+                    for c0 in cand[:8]:
+                        # 只接受「严格同名」的候选，避免兜底换成别的片子
+                        if _strict_same(c0.get("name") or "", want_full):
+                            hit = c0
+                            break
+                    if not hit:
+                        tried.append(alt + "(无同名)")
+                        continue
+                    alst = _fetch_detail(SOURCES[alt], hit["id"])
+                    if alst and _parse_eps(alst[0].get("vod_play_url") or ""):
+                        lst, used_src = alst, alt
+                        tried.append(alt + "(同名兜底成功)")
+                        break
+                    tried.append(alt + "(同名无剧集)")
+                except Exception:
+                    tried.append(alt + "(失败)")
                     continue
-                alst = _fetch_detail(SOURCES[alt], cand[0]["id"])
-                if alst and _parse_eps(alst[0].get("vod_play_url") or ""):
-                    lst, used_src = alst, alt
-                    tried.append(alt + "(兜底成功)")
-                    break
-                tried.append(alt + "(无剧集)")
-            except Exception:
-                tried.append(alt + "(失败)")
-                continue
     if not lst:
         raise HTTPException(404, detail={"message": "各线路都没有这部片子，换个片名试试"})
     v = lst[0]
@@ -489,7 +512,9 @@ def extra(request: Request, id: str, src: str = DEFAULT_SRC, name: str = ""):
                     aeps = _parse_eps(alst[0].get("vod_play_url") or "") if alst else []
                     if not aeps:
                         continue
-                    out.append({"src": alt, "id": c0["id"], "name": alst[0].get("vod_name") or cname,
+                    aname = alst[0].get("vod_name") or cname
+                    out.append({"src": alt, "id": c0["id"], "name": aname,
+                                "strict": _strict_same(aname, name or aname),
                                 "pic": alst[0].get("vod_pic") or c0.get("pic") or "",
                                 "epCount": len(aeps), "maxRes": _probe_res(aeps[0]["url"]),
                                 "remarks": alst[0].get("vod_remarks") or ""})
@@ -501,7 +526,22 @@ def extra(request: Request, id: str, src: str = DEFAULT_SRC, name: str = ""):
     with _cf.ThreadPoolExecutor(max_workers=2) as ex:
         f1, f2 = ex.submit(job_res), ex.submit(job_alts)
         max_res, alts = f1.result(timeout=12), f2.result(timeout=15)
-    data = {"maxRes": max_res, "alts": alts}
+
+    def _q(v):
+        d = "".join(ch for ch in (v or "") if ch.isdigit())
+        return int(d) if d else 0
+
+    # 严格同名优先，其次按画质；best 只在严格同名里选（防止自动切换放错片）
+    alts.sort(key=lambda a: (0 if a.get("strict") else 1, -_q(a.get("maxRes"))))
+    best_marked = False
+    for a in alts:
+        if a.get("strict") and not best_marked and _q(a.get("maxRes")) > _q(max_res):
+            a["best"] = True
+            best_marked = True
+        else:
+            a["best"] = False
+    data = {"maxRes": max_res, "maxResRank": _q(max_res), "expectName": name or "",
+            "alts": alts, "strictAltCount": sum(1 for a in alts if a.get("strict"))}
     _cache_put(ck, data)
     return data
 
