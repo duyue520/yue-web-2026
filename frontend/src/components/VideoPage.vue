@@ -14,8 +14,8 @@
             </div>
           </div>
           <div class="vp-tabs">
-            <button :class="['vp-tab', { on: view === 'vip' }]" @click="view = 'vip'">
-              <v-icon size="14">mdi-crown-outline</v-icon>VIP 解析
+            <button class="vp-tab ghost" title="可选：粘贴其它网站的视频页链接解析（一般用不到）" @click="view = 'vip'">
+              <v-icon size="13">mdi-link-variant</v-icon>贴链接
             </button>
           </div>
           <button class="vp-x" @click="close()"><v-icon size="17">mdi-close</v-icon></button>
@@ -185,7 +185,11 @@
                   <span class="src">线路 {{ detail.src }}</span>
                 </div>
                 <p v-if="detail.content" class="vp-story">{{ detail.content }}</p>
-                <div class="vp-actions">
+                <div v-if="qualityHint" class="vp-qhint" @click="switchToBest">
+                    <v-icon size="14">mdi-auto-fix</v-icon>{{ qualityHint }}
+                    <span class="vp-qhint-go">一键切换 ›</span>
+                  </div>
+                  <div class="vp-actions">
                   <button class="vp-btn primary" @click="playEp(prog.ep || 0, true)"><v-icon size="15">mdi-play</v-icon>{{ prog.ep ? '续播 第' + (prog.ep + 1) + ' 集' : '从头播放' }}</button>
                   <button class="vp-btn" @click="toggleFav()"><v-icon size="15">{{ isFav ? 'mdi-heart' : 'mdi-heart-outline' }}</v-icon>{{ isFav ? '已收藏' : '收藏' }}</button>
                   <button class="vp-btn" @click="altOpen = !altOpen"><v-icon size="15">mdi-swap-horizontal</v-icon>换源<sub v-if="detail.alts && detail.alts.length">{{ detail.alts.length }}</sub></button>
@@ -200,36 +204,54 @@
               <div class="vp-alts-t"><v-icon size="13">mdi-swap-horizontal</v-icon>选择线路（按画质/集数自选）</div>
               <button v-for="(a, i) in detail.alts" :key="i" class="vp-alt" @click="useAlt(a)">
                 <span class="vp-alt-src">{{ a.src }}</span>
+                <span v-if="a.best" class="vp-alt-best">最高画质</span>
+                <span v-if="!a.strict" class="vp-alt-warn">名称不同·请确认</span>
                 <span class="vp-alt-meta">{{ a.epCount }} 集<template v-if="a.maxRes"> · {{ a.maxRes }}</template></span>
                 <span class="vp-alt-go">切换<v-icon size="12">mdi-chevron-right</v-icon></span>
               </button>
+              <div class="vp-alts-t" style="margin-top:10px"><v-icon size="13">mdi-link-variant</v-icon>备用解析线路（当前集）</div>
+              <div class="vp-parse">
+                <button v-for="l in parseLines" :key="l.name" class="vp-parse-chip" @click="playViaParser(l)">{{ l.name }}</button>
+              </div>
             </div>
           </transition>
 
           <div class="vp-player-wrap">
             <video v-show="!useFallback" ref="videoEl" class="vp-video" controls playsinline
-                     @ended="onEnded" @play="playing = true" @pause="playing = false"
+                     @ended="onEnded" @play="playing = true; needTap = false" @pause="playing = false"
                      @dblclick="toggleFs"></video>
             <div v-if="!useFallback && curEp" class="vp-pctl">
               <button class="vp-pbtn" :disabled="curIdx <= 0" title="上一集" @click="prevEp"><v-icon size="16">mdi-skip-previous</v-icon></button>
               <button class="vp-pbtn" :title="playing ? '暂停' : '播放'" @click="togglePlay"><v-icon size="18">{{ playing ? 'mdi-pause' : 'mdi-play' }}</v-icon></button>
               <button class="vp-pbtn" :disabled="curIdx >= detail.eps.length - 1" title="下一集" @click="nextEp"><v-icon size="16">mdi-skip-next</v-icon></button>
               <button class="vp-pbtn" title="全屏" @click="toggleFs"><v-icon size="16">mdi-fullscreen</v-icon></button>
-              <button class="vp-pbtn wide" title="选集" @click="epDrawer = !epDrawer">
+              <button class="vp-pbtn wide" title="选集" @click="epDrawer = !epDrawer; if (curIdx >= 0) epPage = Math.ceil((curIdx + 1) / 60)">
                 <v-icon size="14">mdi-format-list-numbered</v-icon>{{ curIdx + 1 }}/{{ detail.eps.length }}
               </button>
             </div>
             <transition name="vp-drop">
               <div v-if="epDrawer && !useFallback" class="vp-drawer">
                 <div class="vp-drawer-t">选集<button class="vp-drawer-x" @click="epDrawer = false"><v-icon size="13">mdi-close</v-icon></button></div>
-                <div class="vp-drawer-grid">
-                  <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-drawer-ep', { on: i === curIdx }]"
-                          @click="playEp(i); epDrawer = false">{{ e.name }}</button>
+                <div v-if="epPages > 1" class="vp-drawer-pages">
+                  <button v-for="p in epPages" :key="p" :class="['vp-page', { on: p === epPage }]" @click="epPage = p; epDrawerScroll(true)">{{ p }}</button>
+                  <span class="vp-jump">
+                    跳到<input v-model.number="epJump" type="number" min="1" :max="detail.eps.length" @keyup.enter="jumpEp" />
+                    <button @click="jumpEp">确定</button>
+                  </span>
                 </div>
+                <div class="vp-drawer-grid">
+                  <button v-for="(e, i) in epSlice" :key="i + epPage * 60" :class="['vp-drawer-ep', { on: (epPage * 60 + i) === curIdx }]"
+                          @click="playEp(epPage * 60 + i); epDrawer = false">{{ e.name }}</button>
+                </div>
+                <div v-if="epPages > 1" class="vp-drawer-foot">共 {{ detail.eps.length }} 集 · 第 {{ epPage }}/{{ epPages }} 页（每页 60 集）</div>
               </div>
             </transition>
             <iframe v-show="useFallback && fallbackSrc" class="vp-frame" :src="fallbackSrc" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
             <div v-if="loadingEp" class="vp-loading"><div class="vp-spin"></div><p>{{ loadMsg }}</p></div>
+            <button v-if="needTap && !loadingEp" class="vp-tap" @click="tapPlay">
+              <v-icon size="30">mdi-play-circle-outline</v-icon>
+              <span>点击播放</span>
+            </button>
             <transition name="vp-drop">
               <div v-if="nextCount > 0" class="vp-next">
                 <p>下一集 <b>{{ nextCount }}</b> 秒后自动播放</p>
@@ -242,9 +264,12 @@
             <transition name="vp-drop">
               <div v-if="playErr" class="vp-err">
                 <p>{{ playErr }}</p>
+                <p v-if="playDiag" class="vp-diag">环境：{{ playDiag }}</p>
+                <p v-if="curEp" class="vp-diag">地址：{{ (curEp.url || '').slice(0, 72) }}</p>
                 <div class="vp-err-btns">
                   <button class="vp-btn primary" @click="recoverPlay()"><v-icon size="14">mdi-auto-fix</v-icon>自动恢复</button>
                   <button class="vp-btn" @click="switchSource()"><v-icon size="14">mdi-swap-horizontal</v-icon>换源</button>
+                  <a v-if="curEp" class="vp-btn" :href="curEp.url" target="_blank" rel="noopener">用系统播放器打开</a>
                 </div>
               </div>
             </transition>
@@ -270,7 +295,11 @@
           </div>
 
           <div class="vp-eps">
-            <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-ep', { on: i === curIdx }]" @click="playEp(i, true)">{{ e.name }}</button>
+            <button v-for="(e, i) in epSlice" :key="i + epPage * 60" :class="['vp-ep', { on: (epPage * 60 + i) === curIdx }]"
+                    @click="playEp(epPage * 60 + i, true)">{{ e.name }}</button>
+          </div>
+          <div v-if="epPages > 1" class="vp-eps-pages">
+            <button v-for="p in epPages" :key="'d' + p" :class="['vp-qchip', { on: p === epPage }]" @click="epPage = p">{{ p }}</button>
           </div>
         </div>
       </div>
@@ -316,10 +345,24 @@ export default {
       qualities: [], curLevel: -1,
       _hls: null, _retriedLevel: false, _progTimer: 0, _lastProgPush: 0,
       altOpen: false, nextCount: 0, nextTimer: null, _epTimer: 0, _keyHandler: null,
-      playing: false, epDrawer: false, autoFs: true,
+      qualityHint: '',
+      parseLines: [
+        { name: '虾米', url: 'https://jx.xmflv.com/?url=' },
+        { name: 'HLS', url: 'https://jx.hls.one/?url=' },
+        { name: 'fongmi', url: 'https://json.fongmi.cc/web?url=' },
+        { name: 'playm3u8', url: 'https://www.playm3u8.cn/jiexi.php?url=' },
+      ],
+      playing: false, epDrawer: false, autoFs: true, needTap: false, _HlsMod: null,
+      epPage: 1, epJump: null, playDiag: '',
     };
   },
   computed: {
+    epPages() { return this.detail && this.detail.eps ? Math.max(1, Math.ceil(this.detail.eps.length / 60)) : 1; },
+    epSlice() {
+      if (!this.detail || !this.detail.eps) return [];
+      const s = (this.epPage - 1) * 60;
+      return this.detail.eps.slice(s, s + 60);
+    },
     isFav() { return this.detail ? this.favs.some((f) => f.name === this.detail.name) : false; },
   },
   mounted() {
@@ -343,7 +386,27 @@ export default {
     } catch (e) {}
   },
   methods: {
-    open() { this.visible = true; if (!this.homeRows.length) this.loadHome(); this.syncAll(); },
+    open() {
+      this.visible = true;
+      if (!this.homeRows.length) this.loadHome();
+      this.syncAll();
+      this.warmHls();
+    },
+    dbg(patch) {
+      try { window.__vp = Object.assign(window.__vp || {}, patch); } catch (e) {}
+    },
+    async warmHls() {
+      if (this._HlsMod || this._hlsLoadFailed) return;
+      try {
+        const mod = await import('hls.js');
+        this._HlsMod = mod.default || mod.Hls;
+        this.dbg({ hlsMod: true, supported: !!(this._HlsMod && this._HlsMod.isSupported && this._HlsMod.isSupported()) });
+      } catch (e) {
+        this.dbg({ hlsLoadError: String((e && e.message) || e) });
+        console.error('[vp] hls.js 模块加载失败', e);
+        this._hlsLoadFailed = true;
+      }
+    },
     // ---------- 账号同步（收藏/进度） ----------
     authToken() { try { return localStorage.getItem('disease_token') || ''; } catch (e) { return ''; } },
     async syncAll() {
@@ -489,8 +552,10 @@ export default {
     },
     // ---------- 详情 ----------
     openDetailCheat(f) { this.openDetail({ id: f.id, name: f.name, src: f.src, pic: f.pic }); },
+    normName(s) { return String(s || '').toLowerCase().replace(/[《》【】\[\]()（）：:·、,，。.!！?？'"“”‘’\-—_\s]+/g, ''); },
     async openDetail(r) {
       this.stopPlay();
+      this._expectName = r.name || '';
       this.view = 'detail';
       this.loadingEp = false; this.playErr = '';
       try {
@@ -499,7 +564,10 @@ export default {
         this.detail = d;
         this.curIdx = -1; this.curEp = null; this.useFallback = false; this.fallbackSrc = '';
         this.qualities = []; this.curLevel = -1;
-        if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」线路');
+        if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」，片名：' + d.name);
+        else if (r.name && this.normName(d.name) !== this.normName(r.name)) {
+          this.showToast('注意：该线路返回的片名是「' + d.name + '」，与你点的「' + r.name + '」不同，请确认后再看', 5200);
+        }
         this.bestSrc = d.src;
         try { localStorage.setItem('wb_video_src', d.src); } catch (e) {}
         // 异步补充：画质 + 换源候选（不阻塞首屏）
@@ -516,6 +584,18 @@ export default {
         if (this.detail && this.detail.id === d.id) {
           this.detail.maxRes = ex.maxRes || '';
           this.detail.alts = ex.alts || [];
+          // 自动画质优先：有更高画质线路就给一键切换提示
+          const best = (ex.alts || []).find((a) => a.best && a.strict);
+          this.qualityHint = best
+            ? ('有更高画质线路：' + best.src + (best.maxRes ? '（' + best.maxRes + '）' : '') + ' · ' + best.epCount + ' 集')
+            : '';
+          // 默认最高画质：还没开始播就自动切到最高画质线路（每部片只自动切一次，避免来回跳）
+          this._autoSwitched = this._autoSwitched || {};
+          if (best && this.curIdx < 0 && !this._autoSwitched[d.name]) {
+            this._autoSwitched[d.name] = true;
+            this.showToast('已自动选择最高画质线路：' + best.src + (best.maxRes ? '（' + best.maxRes + '）' : ''), 4200);
+            this.useAlt(best);
+          }
         }
       } catch (e) {}
     },
@@ -549,6 +629,37 @@ export default {
       }
       this.favs = this.favs.slice(0, 30);
       try { localStorage.setItem('wb_video_fav', JSON.stringify(this.favs)); } catch (e) {}
+    },
+    epDrawerScroll(toTop) {
+      this.$nextTick(() => {
+        const el = this.$el && this.$el.querySelector('.vp-drawer-grid');
+        if (el && toTop) el.scrollTop = 0;
+      });
+    },
+    jumpEp() {
+      let n = parseInt(this.epJump, 10);
+      if (!n || !this.detail) return;
+      n = Math.max(1, Math.min(n, this.detail.eps.length));
+      this.epPage = Math.ceil(n / 60);
+      this.epJump = null;
+      this.epDrawerScroll(true);
+      this.showToast('已跳到第 ' + n + ' 集，点一下即播放');
+    },
+    switchToBest() {
+      const best = (this.detail && this.detail.alts || []).find((a) => a.best);
+      if (best) this.useAlt(best);
+    },
+    playViaParser(l) {
+      const ep = this.curEp || (this.detail && this.detail.eps && this.detail.eps[0]);
+      if (!ep) { this.showToast('先选一集再换线路'); return; }
+      const u = ep.url;
+      this.fallbackSrc = (u.indexOf('.m3u8') >= 0)
+        ? 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(u)
+        : l.url + encodeURIComponent(u);
+      this.useFallback = true;
+      this.altOpen = false;
+      this.playErr = '';
+      this.showToast('已切换解析线路：' + l.name);
     },
     useAlt(a) {
       this.altOpen = false;
@@ -596,11 +707,19 @@ export default {
       this.playErr = ''; this.useFallback = false; this.fallbackSrc = '';
       this._retriedLevel = false;
       this.loadingEp = true; this.loadMsg = '正在建立直连…';
-      await this.$nextTick();
-      const ok = await this.nativePlay(this.curEp.url, true);
+      this.dbg({ playEp: this.curEp.url.slice(0, 90), hlsMod: !!this._HlsMod });
+      // 关键：点击路径里不做 await（否则浏览器用户手势失效，play() 会被静默拒绝）
+      const ok = this.nativePlay(this.curEp.url, true);
       this.loadingEp = false;
       if (!ok) this.playErr = '直连没能播放（片源可能限制跨域）';
       this.saveProg(true);
+      clearTimeout(this._stallTimer);
+      this._stallTimer = setTimeout(() => {
+        const v = this.$refs.videoEl;
+        if (v && v.paused && (v.currentTime || 0) < 0.2 && !this.useFallback) {
+          this.autoRecover();
+        }
+      }, 12000);
       if (userGesture && this.autoFs) {
         // 用户点击播放 → 直接全屏（市面播放器习惯）
         try {
@@ -638,7 +757,17 @@ export default {
     togglePlay() {
       const v = this.playerEl();
       if (!v) return;
-      if (v.paused) { v.play().catch(() => {}); } else { v.pause(); }
+      if (v.paused) { this.safePlay(v); } else { v.pause(); }
+    },
+    tapPlay() {
+      // 用户直接点按 → 手势有效，顺便解除静音
+      const v = this.playerEl();
+      if (!v) return;
+      this.needTap = false;
+      try { v.muted = false; } catch (e) {}
+      const p = v.play();
+      if (p && p.catch) p.catch(() => { try { v.muted = true; v.play().catch(() => {}); } catch (e) {} });
+      this.playing = true;
     },
     prevEp() { if (this.curIdx > 0) this.playEp(this.curIdx - 1); },
     nextEp() { if (this.detail && this.curIdx < this.detail.eps.length - 1) this.playEp(this.curIdx + 1); },
@@ -655,7 +784,22 @@ export default {
       const v = this.$refs.videoEl;
       if (v) v.playbackRate = r;
     },
-    async nativePlay(url, isSwitch) {
+    safePlay(v) {
+      try { window.__vp = Object.assign(window.__vp || {}, { safePlayCalled: true }); } catch (e) {}
+      // 统一处理自动播放被拦：先原声试，被拒 → 静音起播 + 提示点按
+      if (!v) return;
+      const p = v.play();
+      if (p && p.catch) {
+        p.catch(() => {
+          try {
+            v.muted = true;
+            const p2 = v.play();
+            if (p2 && p2.catch) p2.catch(() => { this.needTap = true; });
+          } catch (e) { this.needTap = true; }
+        });
+      }
+    },
+    nativePlay(url, isSwitch) {
       const v = this.$refs.videoEl;
       if (!v || !url) return false;
       // 无缝切集：复用 hls 实例（不重建播放器、不黑屏）
@@ -663,21 +807,40 @@ export default {
         try {
           this._hls.loadSource(url);
           v.playbackRate = this.rate;
-          v.play().catch(() => {});
+          this.safePlay(v);
           this.$nextTick(() => { try { v.currentTime = this.getEpPos(); } catch (e) {} });
           return true;
         } catch (e) {}
       }
       try { if (this._hls) { this._hls.destroy(); this._hls = null; } } catch (e) {}
       const isM3u8 = /\.m3u8(\?|$)/i.test(url);
+      this.playDiag = 'MSE=' + (window.MediaSource ? 'Y' : 'N') + ' 原生HLS=' + (v.canPlayType('application/vnd.apple.mpegurl') ? 'Y' : 'N') + ' hls.js=' + (this._HlsMod ? 'Y' : 'N');
+      // 原生 HLS 优先：iOS Safari / 部分安卓内核只认原生，不认 hls.js
       if (isM3u8 && v.canPlayType('application/vnd.apple.mpegurl') && !window.MediaSource) {
-        v.src = url; v.playbackRate = this.rate; v.play().catch(() => {}); return true;
+        v.src = url;
+        v.playbackRate = this.rate;
+        this.safePlay(v);
+        return true;
+      }
+      if (isM3u8 && !window.MediaSource) {
+        // 无 MSE 也无原生 HLS（部分内置浏览器）→ 直接备用播放器
+        this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(url);
+        this.useFallback = true;
+        this.showToast('当前浏览器不支持直连播放，已切备用播放器');
+        return true;
       }
       if (isM3u8) {
         try {
-          const mod = await import('hls.js');
-          const Hls = mod.default || mod.Hls;
-          if (Hls && Hls.isSupported()) {
+          const Hls = this._HlsMod;
+          this.dbg({ inM3u8: true, hasMod: !!Hls });
+          if (!Hls || !Hls.isSupported) {
+            // 模块尚未就绪：直接用备用 iframe 播放器，别让用户看到黑屏
+            this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(url);
+            this.useFallback = true;
+            this.showToast('播放器组件加载中，已切备用线路');
+            return true;
+          }
+          if (Hls.isSupported()) {
             const hls = new Hls({ maxBufferLength: 40, manifestLoadingTimeOut: 15000, fragLoadingMaxRetry: 4 });
             this._hls = hls;
             this.qualities = []; this.curLevel = -1;
@@ -689,25 +852,52 @@ export default {
             });
             hls.on(Hls.Events.LEVEL_SWITCHED, (e, d) => { this.curLevel = d.level; });
             hls.on(Hls.Events.ERROR, (e, data) => {
-              if (!data || !data.fatal) return;
+              if (!data) return;
+              if (!data.fatal) {
+                console.warn('[vp] hls 非致命错误', data.type, data.details);
+                return;
+              }
+              console.error('[vp] hls 致命错误', data.type, data.details, data.reason || '');
+              this.dbg({ hlsFatal: data.type + '/' + data.details + '/' + (data.reason || '') });
               if (!this._retriedLevel) {
                 this._retriedLevel = true;
                 try { if (this.curLevel > 0) hls.currentLevel = 0; hls.startLoad(); this.showToast('直连不稳，已自动降低清晰度重试'); return; } catch (err) {}
               }
               this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(url);
-              this.playErr = '直连播放失败，已准备好备用线路';
+              this.playErr = '直连播放失败，正在自动切换备用线路…';
+              this.autoRecover();
             });
+            this.dbg({ hlsCreated: true });
             hls.loadSource(url);
             hls.attachMedia(v);
             v.playbackRate = this.rate;
-            v.play().catch(() => {});
             v.addEventListener('timeupdate', () => this.saveEpPos());
-            this.$nextTick(() => { try { v.currentTime = this.getEpPos(); } catch (e) {} });
+            try { v.currentTime = this.getEpPos(); } catch (e) {}
+            this.safePlay(v);
             return true;
           }
-        } catch (e) {}
+          // Hls.isSupported() 为 false（老 Safari/不支持 MSE）→ 原生或备用
+          if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            v.src = url;
+            this.safePlay(v);
+            return true;
+          }
+        } catch (e) {
+          console.error('[vp] hls 播放异常', e);
+          this.playErr = '播放器异常：' + (e && e.message ? e.message : e);
+          this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(url);
+        }
       }
-      try { v.src = url; v.playbackRate = this.rate; v.play().catch(() => {}); return true; } catch (e) { return false; }
+      try {
+        v.src = url;
+        v.playbackRate = this.rate;
+        this.safePlay(v);
+        return true;
+      } catch (e) {
+        console.error('[vp] 直链播放异常', e);
+        this.playErr = '播放失败：' + (e && e.message ? e.message : e);
+        return false;
+      }
     },
     getEpPos() {
       try {
@@ -716,11 +906,34 @@ export default {
         return (s > 5 && s < 86400) ? s : 0;
       } catch (e) { return 0; }
     },
-    recoverPlay() {
+    recoverPlay(auto) {
       this.playErr = '';
       if (this.curEp && !this.fallbackSrc) this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(this.curEp.url);
-      if (this.fallbackSrc) { this.useFallback = true; this.showToast('已切到备用线路播放'); return; }
+      if (this.fallbackSrc) {
+        this.useFallback = true;
+        this.showToast('直连不可用，已自动切换到备用播放器');
+        return;
+      }
+      const i = (this._parseIdx || 0) % this.parseLines.length;
+      this._parseIdx = i + 1;
+      if (this.curEp) {
+        this.playViaParser(this.parseLines[i]);
+        if (auto) this.showToast('已自动切换解析线路：' + this.parseLines[i].name);
+        return;
+      }
       this.switchSource();
+    },
+    // 播放卡住/失败 → 全自动恢复（原生 → 备用播放器 → 解析线路 → 换源），用户零操作
+    autoRecover() {
+      if (this._autoRecovering) return;
+      this._autoRecovering = true;
+      this.loadingEp = true;
+      this.loadMsg = '直连不稳定，正在自动切换线路…';
+      setTimeout(() => {
+        this.loadingEp = false;
+        this.recoverPlay(true);
+        setTimeout(() => { this._autoRecovering = false; }, 1500);
+      }, 800);
     },
     setLevel(i) { if (this._hls) { this._hls.currentLevel = i; this.curLevel = i; } },
     pickLine(l) { this.vipLine = l; if (this.vipUrl.trim()) this.playVip([this.vipUrl]); },
@@ -1006,4 +1219,39 @@ export default {
   border-radius: 8px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .vp-drawer-ep:hover { border-color: #e8a25c; color: #a35f1e; }
 .vp-drawer-ep.on { background: linear-gradient(120deg, #e8a25c, #cf7a48); color: #fff; border-color: transparent; }
+
+.vp-tap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 7;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 30px; cursor: pointer;
+  border-radius: 16px; border: 1px solid rgba(255, 255, 255, .35); background: rgba(20, 20, 24, .6);
+  color: #fff; font-size: 13px; font-weight: 700; backdrop-filter: blur(8px); }
+.vp-tap:hover { background: rgba(232, 162, 92, .9); border-color: transparent; }
+
+.vp-qhint { display: flex; align-items: center; gap: 6px; margin: 8px 0 10px; padding: 8px 12px; cursor: pointer;
+  font-size: 12px; color: #8a5a1c; background: linear-gradient(90deg, rgba(255, 236, 205, .9), rgba(255, 248, 235, .85));
+  border: 1px solid rgba(232, 162, 92, .5); border-radius: 10px; }
+.vp-qhint:hover { background: linear-gradient(90deg, #ffe0b8, #fff3e0); }
+.vp-qhint-go { margin-left: auto; font-weight: 800; color: #b0672a; }
+.vp-alt-best { font-size: 10px; font-weight: 800; color: #fff; background: linear-gradient(120deg, #e8a25c, #cf7a48);
+  border-radius: 999px; padding: 1px 7px; }
+.vp-parse { display: flex; flex-wrap: wrap; gap: 6px; }
+.vp-parse-chip { border: 1px solid rgba(180, 160, 120, .45); background: #fff; color: #6f6552; font-size: 11.5px;
+  padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+.vp-parse-chip:hover { border-color: #e8a25c; color: #a35f1e; background: rgba(232, 162, 92, .12); }
+
+.vp-alt-warn { font-size: 10px; font-weight: 700; color: #b45309; background: rgba(253, 224, 71, .35);
+  border: 1px solid rgba(217, 119, 6, .45); border-radius: 999px; padding: 1px 7px; }
+
+.vp-drawer-pages { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 8px 10px 0; }
+.vp-page { min-width: 30px; height: 26px; border-radius: 7px; border: 1px solid rgba(180, 160, 120, .4); background: #fff;
+  color: #6f6552; font-size: 11.5px; cursor: pointer; }
+.vp-page.on { background: linear-gradient(120deg, #e8a25c, #cf7a48); color: #fff; border-color: transparent; }
+.vp-jump { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #8a7c62; margin-left: auto; }
+.vp-jump input { width: 52px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(180, 160, 120, .4); font-size: 11.5px; }
+.vp-jump button { border: none; border-radius: 6px; padding: 4px 8px; background: #e8a25c; color: #fff; font-size: 11.5px; cursor: pointer; }
+.vp-drawer-foot { padding: 6px 10px 9px; font-size: 11px; color: #a99d87; text-align: center; border-top: 1px solid rgba(180, 160, 120, .2); }
+.vp-eps-pages { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.vp-diag { font-size: 11px; color: #b08968; word-break: break-all; }
+
+.vp-tab.ghost { opacity: .62; font-size: 11.5px; padding: 6px 11px; }
+.vp-tab.ghost:hover { opacity: 1; }
 </style>
