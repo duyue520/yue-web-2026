@@ -14,10 +14,12 @@ import time
 import uuid
 
 import httpx
+from sqlalchemy import text as sql_text
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from ..database import engine
 from ..models.db_models import User
 from ..ratelimit import limit
 from ..services.auth_service import get_optional_user
@@ -73,6 +75,34 @@ class ChatIn(BaseModel):
     model: str = Field(default="doubao", max_length=24)
 
 
+async def _retry_once(cfg, msgs):
+    """自愈后重试一次上游请求。"""
+    try:
+        async with httpx.AsyncClient(timeout=60) as c:
+            return await c.post(
+                cfg["base"].rstrip("/") + "/chat/completions",
+                headers={"Authorization": "Bearer " + cfg["key"], "Content-Type": "application/json"},
+                json={"model": cfg["model"], "messages": msgs, "stream": False})
+    except Exception:
+        return None
+
+def _revive_internal_key() -> bool:
+    """内部系统 key（分身专用）若被误禁用，自动恢复并返回 True。"""
+    try:
+        pfx = (os.environ.get("AI_DOUBAO_KEY") or "")[:12]
+        if not pfx:
+            return False
+        with engine.connect() as conn:
+            r = conn.execute(sql_text(
+                "UPDATE ai_keys SET enabled = true WHERE enabled = false "
+                "AND (name = 'internal-avatar' OR key_prefix LIKE :p)"),
+                {"p": pfx + "%"})
+            conn.commit()
+            return (r.rowcount or 0) > 0
+    except Exception:
+        return False
+
+
 @router.get("/status")
 def ai_status():
     models = [
@@ -123,7 +153,13 @@ async def ai_chat(request: Request, payload: ChatIn, user: User = Depends(get_op
                     if r.status_code != 200:
                         yield _sse({"type": "error",
                                     "message": f"「{cfg['label']}」上游返回 {r.status_code}，可能 Key 失效或额度用完"})
-                        return
+                        if r.status_code == 401 and _revive_internal_key():
+                            r = await _retry_once(cfg, msgs)
+                            if r is None or r.status_code != 200:
+                                yield _sse({"type": "error", "message": "「%s」上游仍鉴权失败，已自动恢复内部密钥但仍不通" % cfg["label"]})
+                                return
+                        else:
+                            return
                     async for line in r.aiter_lines():
                         if not line or not line.startswith("data:"):
                             continue
