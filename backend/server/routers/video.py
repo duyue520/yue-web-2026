@@ -295,6 +295,26 @@ def _probe_res(url: str) -> str:
         return ""
 
 
+def _ep_playable(url: str) -> bool:
+    """探测首集 m3u8 是否可直连（KB 级 + 短超时）。CDN 节点会漂移，必须现探。"""
+    if not url or ".m3u8" not in url:
+        return bool(url)
+    try:
+        with httpx.Client(timeout=6, follow_redirects=True,
+                          headers={"User-Agent": "Mozilla/5.0 Chrome/131"}) as c:
+            with c.stream("GET", url) as r:
+                if r.status_code != 200:
+                    return False
+                buf = ""
+                for chunk in r.iter_text():
+                    buf += chunk
+                    if len(buf) > 2048:
+                        break
+        return buf.lstrip().startswith("#EXTM3U")
+    except Exception:
+        return False
+
+
 def _fetch_detail(cfg, vid):
     with _client(cfg["referer"]) as c:
         r = c.get(cfg["detail"], params={"ac": "detail", "ids": vid})
@@ -346,7 +366,29 @@ def detail(request: Request, id: str, src: str = DEFAULT_SRC, fallback: int = 1)
         raise HTTPException(404, detail={"message": "各线路都没有这部片子，换个片名试试"})
     v = lst[0]
     eps = _parse_eps(v.get("vod_play_url") or "")
+    # 源级健康：首集拉不动就自动换同名源（CDN 节点漂移的兜底）
+    playable = _ep_playable(eps[0]["url"]) if eps else False
+    switched_from = ""
+    if eps and not playable and fallback:
+        want_full = v.get("vod_name") or ""
+        for alt in [n for n in SOURCES if n != used_src]:
+            try:
+                cand = _search_one(alt, _clean_kw(want_full))
+                hit = next((c for c in cand[:8] if _strict_same(c.get("name") or "", want_full)), None)
+                if not hit:
+                    continue
+                alst = _fetch_detail(SOURCES[alt], hit["id"])
+                aeps = _parse_eps(alst[0].get("vod_play_url") or "") if alst else []
+                if aeps and _ep_playable(aeps[0]["url"]):
+                    switched_from, v, eps = used_src, alst[0], aeps
+                    used_src = alt
+                    playable = True
+                    tried.append(alt + "(换源可播)")
+                    break
+            except Exception:
+                continue
     data = {"id": vid, "src": used_src, "tried": tried, "recovered": used_src != src_name,
+            "playable": playable, "switched_from": switched_from,
             "name": v.get("vod_name") or "", "pic": v.get("vod_pic") or "",
             "year": v.get("vod_year") or "", "type": v.get("type_name") or "",
             "area": v.get("vod_area") or "", "remarks": v.get("vod_remarks") or "",
@@ -601,16 +643,21 @@ def _search_iqiyi(kw):
         data = r.json().get("data") or {}
     out = []
     for d in (data.get("docinfos") or [])[:12]:
-        t = (d.get("title") or "").replace("<em>", "").replace("</em>", "").strip()
+        a = d.get("albumDocInfo") or {}
+        t = (a.get("albumTitle") or d.get("title") or "").strip()
         if not t:
             continue
-        vid = d.get("videoId") or ""
-        aid = d.get("albumId") or (d.get("albumDocInfo") or {}).get("albumId") or ""
-        url = ("https://www.iqiyi.com/v_%s.html" % vid) if vid else ("https://www.iqiyi.com/a_%s.html" % aid if aid else "")
-        if not url:
+        aid = a.get("albumId") or ""
+        qipu = d.get("qipu_id") or ""
+        if aid:
+            url = "https://www.iqiyi.com/a_%s.html" % aid
+        elif qipu:
+            url = "https://www.iqiyi.com/v_%s.html" % qipu
+        else:
             continue
-        out.append({"platform": "爱奇艺", "name": t, "pic": d.get("imageUrl") or d.get("albumImageUrl") or "",
-                    "url": url, "note": (d.get("albumDocInfo") or {}).get("channel") or ""})
+        out.append({"platform": "爱奇艺", "name": t,
+                    "pic": a.get("albumVImage") or a.get("albumHImage") or "",
+                    "url": url, "note": (a.get("channel") or "").split(",")[0]})
     return out
 
 
@@ -618,17 +665,18 @@ def _search_youku(kw):
     with _client("https://www.youku.com/") as c:
         r = c.get("https://search.youku.com/api/search", params={"keyword": kw})
         j = r.json()
-    items = (((j.get("pageData") or {}).get("componentList")) or [])
+    pd = j.get("pageData") or {}
+    items = pd.get("componentList") or j.get("componentList") or (j.get("data") or {}).get("componentList") or []
     out = []
     for it in items:
         if it.get("templateType") not in ("video", "ogc", "youku", None):
             pass
         vid = it.get("videoId") or it.get("id") or ""
-        t = (it.get("title") or "").strip()
+        t = re.sub(r"<[^>]+>", "", (it.get("title") or "")).strip()
         if not vid or not t:
             continue
-        out.append({"platform": "优酷", "name": t,
-                    "pic": it.get("poster") or it.get("img") or "",
+        pic = it.get("poster") or it.get("img") or ""
+        out.append({"platform": "优酷", "name": t, "pic": pic,
                     "url": "https://v.youku.com/v_show/id_%s.html" % vid, "note": it.get("subTitle") or ""})
         if len(out) >= 12:
             break
@@ -685,6 +733,61 @@ def platform(request: Request, kw: str):
             except Exception:
                 continue
     data = {"kw": kw, "total": len(res), "platforms": ok_pf, "list": res[:30]}
+    _cache_put(ck, data)
+    return data
+
+
+LINE_CANDIDATES = [
+    ("线路1", "https://www.playm3u8.cn/jiexi.php?url="),
+    ("线路2", "https://bfq.txnp.cn/player?url="),
+    ("线路3", "https://bd.jx.cn/?url="),
+    ("线路4", "https://www.ckplayer.vip/jiexi/?url="),
+    ("线路5", "https://jx.playerjy.com/?url="),
+    ("线路6", "https://video.isyour.love/player/getplayer?url="),
+    ("线路7", "https://jx.xymp4.cc/?url="),
+    ("线路8", "https://jx.77flv.cc/?url="),
+    ("线路9", "https://jiexi.789jiexi.icu:4433/?url="),
+    ("线路10", "https://jx.202617.xyz/tv.php?url="),
+]
+_DEAD_MARKS = ("后会无期", "已停止", "停止服务", "已关停", "维护中", "暂未开放", "服务已下线", "江湖路远", "解析失败", "不支持")
+_LINE_TEST = "https://v4.wsyzym3u8.com/202411/27/28HzwAj3yh19/video/index.m3u8"
+
+
+def _line_alive(base):
+    import urllib.parse as _up
+    try:
+        with httpx.Client(timeout=10, follow_redirects=True, verify=False,
+                          headers={"User-Agent": "Mozilla/5.0 Chrome/131"}) as c:
+            r = c.get(base + _up.quote(_LINE_TEST, safe=""))
+        body = r.text
+        if r.status_code != 200 or len(body) < 400:
+            return False
+        if any(m in body for m in _DEAD_MARKS):
+            return False
+        low = body.lower()
+        return any(k in low for k in ("<video", "hls.js", "dplayer", "artplayer", "jwplayer", "m3u8", "iframe"))
+    except Exception:
+        return False
+
+
+@router.get("/lines")
+def lines(request: Request):
+    """解析线路存活体检（30 分钟缓存）：前端只展示存活的线路。"""
+    limit(request, "video_lines", 20, 60, "太快啦")
+    ck = "lines:v1"
+    cached = _cache_get(ck)
+    if cached is not None:
+        return cached
+    with _cf.ThreadPoolExecutor(max_workers=5) as ex:
+        futs = [(n, u, ex.submit(_line_alive, u)) for n, u in LINE_CANDIDATES]
+        alive = []
+        for n, u, f in futs:
+            try:
+                if f.result(timeout=14):
+                    alive.append({"name": n, "url": u})
+            except Exception:
+                continue
+    data = {"total": len(alive), "alive": alive, "checked": len(LINE_CANDIDATES)}
     _cache_put(ck, data)
     return data
 

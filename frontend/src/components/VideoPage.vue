@@ -259,7 +259,7 @@
             <iframe v-show="playMode === 'parse' && parseSrcUrl" class="vp-frame" :src="parseSrcUrl"
                     allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
             <video v-show="playMode === 'direct' && !useFallback" ref="videoEl" class="vp-video" controls playsinline
-                     @ended="onEnded" @play="playing = true; needTap = false" @pause="playing = false"
+                     @ended="onEnded" @play="playing = true; needTap = false; isMuted = $event.target.muted" @volumechange="isMuted = $event.target.muted" @pause="playing = false"
                      @dblclick="toggleFs"></video>
             <div v-if="!useFallback && curEp" class="vp-pctl">
               <button class="vp-pbtn" :disabled="curIdx <= 0" title="上一集" @click="prevEp"><v-icon size="16">mdi-skip-previous</v-icon></button>
@@ -323,6 +323,8 @@
             <div class="vp-now">
               <button :class="['vp-qchip', { on: playMode === 'parse' }]" @click="switchMode('parse')">解析播放</button>
               <button :class="['vp-qchip', { on: playMode === 'direct' }]" @click="switchMode('direct')">直连播放</button>
+              <button v-if="isMuted" class="vp-qchip on" @click="unmute">🔊 开启声音</button>
+              <span v-if="playMode === 'parse'" class="vp-rothint">第三方解析线路（可能失效，已自动体检）</span>
               <label v-if="playMode === 'parse'" class="vp-auto" title="一条线路播不出来就自动切下一条">
                 <input type="checkbox" v-model="autoRotate" @change="autoRotate ? startRotate() : stopRotate()" /> 自动换线路
               </label>
@@ -331,6 +333,7 @@
                 <input type="checkbox" v-model="autoRotate" @change="autoRotate ? startRotate() : stopRotate()" /> 自动换线路
               </label>
               <span v-if="playMode === 'parse' && autoRotate" class="vp-rothint">正在自动轮换中，看到画面请取消勾选</span>
+              <span v-if="playMode === 'parse' && !parseLines.length" class="vp-rothint">当前没有存活的第三方线路，请用「直连播放」</span>
               <span v-if="playMode === 'parse'" class="vp-qwrap">
                 <button v-for="l in parseLines" :key="l.name" :class="['vp-qchip', { on: parseLine && parseLine.name === l.name }]" @click="useParseLine(l)">{{ l.name }}</button>
               </span>
@@ -424,8 +427,8 @@ export default {
         { name: '⑮Yparse', url: 'https://jx.yparse.com/index.php?url=' },
         { name: '⑯极速', url: 'https://jx.2s0.cn/player/?url=' },
       ],
-      playing: false, epDrawer: false, autoFs: true, needTap: false, _HlsMod: null,
-      playMode: 'parse', parseLine: null, parseSrcUrl: '', autoRotate: true, _rotateTimer: null, _rotateIdx: 0, autoRotate: true, _rotateTimer: null, _rotateIdx: 0,
+      playing: false, epDrawer: false, autoFs: true, needTap: false, _HlsMod: null, isMuted: false,
+      playMode: 'direct', parseLine: null, parseSrcUrl: '', autoRotate: false, _rotateTimer: null, _rotateIdx: 0, autoRotate: true, _rotateTimer: null, _rotateIdx: 0,
       epPage: 1, epJump: null, playDiag: '', recoverTip: '',
       platList: [], platNames: '', platItem: null, platLine: null, platSrc: '', recoverTip: '',
     };
@@ -465,9 +468,22 @@ export default {
       if (!this.homeRows.length) this.loadHome();
       this.syncAll();
       this.warmHls();
+      if (!this.parseLines.length || this.parseLines[0].name === '线路1') this.loadLines();
     },
     dbg(patch) {
       try { window.__vp = Object.assign(window.__vp || {}, patch); } catch (e) {}
+    },
+    async loadLines() {
+      try {
+        const d = await this.fetchJSON('/api/video/lines', 2);
+        if (d && d.alive && d.alive.length) {
+          this.parseLines = d.alive;
+          this.parseLine = this.parseLines[0];
+        } else if (d && d.total === 0) {
+          this.parseLines = [];
+          this.parseLine = null;
+        }
+      } catch (e) {}
     },
     async warmHls() {
       if (this._HlsMod || this._hlsLoadFailed) return;
@@ -668,7 +684,9 @@ export default {
         this.curIdx = -1; this.curEp = null; this.useFallback = false; this.fallbackSrc = '';
         this.qualities = []; this.curLevel = -1;
         this._recoverStep = 0;
-        if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」，片名：' + d.name);
+        if (d.switched_from) this.showToast('「' + d.switched_from + '」片源暂时拉不动，已自动换到「' + d.src + '」（可直连，片名一致：' + d.name + '）', 5200);
+        else if (d.playable === false) this.showToast('注意：该片源暂时拉不动，可点「换源」试试别的线路', 4800);
+        else if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」，片名：' + d.name);
         else if (r.name && this.normName(d.name) !== this.normName(r.name)) {
           this.showToast('注意：该线路返回的片名是「' + d.name + '」，与你点的「' + r.name + '」不同，请确认后再看', 5200);
         }
@@ -921,6 +939,15 @@ export default {
       const v = this.$refs.videoEl;
       return v || null;
     },
+    unmute() {
+      const v = this.playerEl();
+      if (!v) return;
+      v.muted = false;
+      try { v.volume = 1; } catch (e) {}
+      this.isMuted = false;
+      if (v.paused) this.safePlay(v);
+      this.showToast('已开启声音');
+    },
     togglePlay() {
       const v = this.playerEl();
       if (!v) return;
@@ -960,6 +987,8 @@ export default {
         p.catch(() => {
           try {
             v.muted = true;
+            this.isMuted = true;
+            this.showToast('浏览器拦截了自动播放，已静音起播（点「开启声音」）', 4200);
             const p2 = v.play();
             if (p2 && p2.catch) p2.catch(() => { this.needTap = true; });
           } catch (e) { this.needTap = true; }
