@@ -2,146 +2,236 @@
   <transition name="vp-fade">
     <div v-if="visible" class="vp-mask" @click.self="close()">
       <div class="vp-shell" :class="{ 'is-full': xs }">
-        <!-- 顶部光带 -->
         <div class="vp-aurora"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
 
         <header class="vp-head">
+          <button v-if="view !== 'home'" class="vp-back" @click="goHome"><v-icon size="16">mdi-chevron-left</v-icon></button>
           <div class="vp-brand">
             <span class="vp-logo">🎬</span>
             <div>
               <div class="vp-title">影视库<span class="vp-sub">· 全网片源直连</span></div>
-              <div class="vp-note">片源与解析均来自互联网公开分享，本站不存储、不转存任何视频</div>
+              <div class="vp-note">片源来自互联网公开分享，本站不存储任何视频、视频流量不经本站</div>
             </div>
           </div>
           <div class="vp-tabs">
-            <button :class="['vp-tab', { on: tab === 'search' }]" @click="tab = 'search'">
-              <v-icon size="14">mdi-movie-search-outline</v-icon>片库搜索
-            </button>
-            <button :class="['vp-tab', { on: tab === 'vip' }]" @click="tab = 'vip'">
+            <button :class="['vp-tab', { on: view === 'vip' }]" @click="view = 'vip'">
               <v-icon size="14">mdi-crown-outline</v-icon>VIP 解析
             </button>
           </div>
           <button class="vp-x" @click="close()"><v-icon size="17">mdi-close</v-icon></button>
         </header>
 
-        <!-- ============ 片库搜索 ============ -->
-        <div v-show="tab === 'search'" class="vp-body">
-          <div class="vp-search">
-            <v-icon size="18" class="vp-search-ico">mdi-magnify</v-icon>
-            <input v-model="kw" class="vp-input" maxlength="30" placeholder="搜剧名、动漫、电影…（回车搜索）"
-                   :disabled="searching" @keyup.enter="doSearch" />
-            <button class="vp-go" :disabled="searching || !kw.trim()" @click="doSearch">
-              {{ searching ? '搜索中…' : '搜索' }}
-            </button>
-          </div>
-          <div class="vp-hot">
-            <span class="vp-hot-t">热门</span>
-            <button v-for="h in hotWords" :key="h" class="vp-hot-c" @click="quickSearch(h)">{{ h }}</button>
-          </div>
+        <transition name="vp-drop">
+          <div v-if="toast" class="vp-toast"><v-icon size="14">mdi-auto-fix</v-icon>{{ toast }}</div>
+        </transition>
 
-          <!-- 骨架屏 -->
-          <div v-if="searching" class="vp-grid">
-            <div v-for="i in 8" :key="i" class="vp-card sk"><div class="vp-poster sk-anim"></div><div class="vp-line sk-anim"></div></div>
-          </div>
-
-          <div v-else-if="results.length" class="vp-grid">
-            <div v-for="r in results" :key="r.id" class="vp-card" @click="openDetail(r)">
-              <div class="vp-poster" :style="r.pic ? { backgroundImage: `url(${r.pic})` } : {}">
-                <span v-if="!r.pic" class="vp-noimg">无海报</span>
-                <span class="vp-src">{{ r.src || '主源' }}</span>
-                <span class="vp-play-ico"><v-icon size="26">mdi-play-circle</v-icon></span>
-              </div>
-              <div class="vp-line">{{ r.name }}</div>
-            </div>
-          </div>
-
-          <div v-else-if="searched" class="vp-empty">
-            <v-icon size="40">mdi-movie-off-outline</v-icon>
-            <p>没搜到「{{ lastKw }}」，换个名字试试</p>
-          </div>
-          <div v-else class="vp-empty">
-            <v-icon size="40">mdi-popcorn</v-icon>
-            <p>输入片名开搜，或点上面的热门词</p>
-          </div>
-        </div>
-
-        <!-- ============ VIP 解析 ============ -->
-        <div v-show="tab === 'vip'" class="vp-body">
-          <div class="vp-tip">
-            <v-icon size="14">mdi-information-outline</v-icon>
-            粘贴爱奇艺 / 腾讯视频 / 优酷 / 芒果 / B站的视频页链接，选一条解析线路即可播放（若卡顿就换线路）
-          </div>
+        <!-- ==================== VIP 解析 ==================== -->
+        <div v-if="view === 'vip'" class="vp-body">
+          <div class="vp-tip"><v-icon size="14">mdi-information-outline</v-icon>粘贴爱奇艺 / 腾讯 / 优酷 / 芒果 / B站链接，选线路播放；卡顿就换别的线路</div>
           <div class="vp-search">
             <v-icon size="18" class="vp-search-ico">mdi-link-variant</v-icon>
             <input v-model="vipUrl" class="vp-input" placeholder="粘贴视频页链接，如 https://v.qq.com/x/cover/xxx.html" />
             <button class="vp-go" :disabled="!vipUrl.trim()" @click="playVip([vipUrl])">解析</button>
           </div>
           <div class="vp-lines">
-            <button v-for="l in lines" :key="l.name" class="vp-line-chip" :class="{ on: vipLine && vipLine.name === l.name }"
-                    @click="vipLine = l; if (vipUrl.trim()) playVip([vipUrl])">{{ l.name }}</button>
+            <button v-for="l in lines" :key="l.name" class="vp-line-chip" :class="{ on: vipLine && vipLine.name === l.name }" @click="pickLine(l)">{{ l.name }}</button>
           </div>
           <div v-if="vipSrc" class="vp-player-wrap">
             <iframe class="vp-frame" :src="vipSrc" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
           </div>
           <div v-else class="vp-empty small">
-            <v-icon size="34">mdi-television-play</v-icon>
-            <p>贴个链接 + 点一条线路，影片就出来了</p>
+            <span class="vp-empty-orb soft"><v-icon size="30">mdi-television-play</v-icon></span>
+            <p>贴链接 + 点线路，影片就出来了</p>
           </div>
         </div>
 
-        <!-- ============ 详情播放层 ============ -->
-        <transition name="vp-slide">
-          <div v-if="detail" class="vp-detail">
-            <div class="vp-hero" :style="detail.pic ? { backgroundImage: `url(${detail.pic})` } : {}">
-              <div class="vp-hero-mask"></div>
-              <div class="vp-hero-in">
-                <div class="vp-hero-poster" :style="detail.pic ? { backgroundImage: `url(${detail.pic})` } : {}"></div>
-                <div class="vp-hero-info">
-                  <h3>{{ detail.name }}</h3>
-                  <div class="vp-meta">
-                    <span v-if="detail.year">{{ detail.year }}</span>
-                    <span v-if="detail.type">{{ detail.type }}</span>
-                    <span v-if="detail.area">{{ detail.area }}</span>
-                    <span v-if="detail.remarks">{{ detail.remarks }}</span>
-                    <span v-if="detail.eps.length">共 {{ detail.eps.length }} 集</span>
+        <!-- ==================== 首页 ==================== -->
+        <div v-else-if="view === 'home'" class="vp-body">
+          <div class="vp-searchwrap">
+            <div class="vp-search">
+              <v-icon size="18" class="vp-search-ico">mdi-magnify</v-icon>
+              <input v-model="kw" class="vp-input" maxlength="30" placeholder="搜剧名、动漫、电影…"
+                     :disabled="searching" @keyup.enter="doSearch" @input="onInput" @focus="sugOpen = sugList.length > 0" @blur="closeSugSoon" />
+              <button class="vp-go" :disabled="searching || !kw.trim()" @click="doSearch">{{ searching ? '搜索中…' : '搜索' }}</button>
+            </div>
+            <transition name="vp-drop">
+              <div v-if="sugOpen && sugList.length" class="vp-sug">
+                <button v-for="(s, i) in sugList" :key="i" @mousedown.prevent="quickSearch(s.name)">
+                  <v-icon size="13">mdi-magnify</v-icon>{{ s.name }}
+                </button>
+              </div>
+            </transition>
+          </div>
+
+          <div class="vp-chips">
+            <button v-for="t in homeTypes" :key="t.id" class="vp-chip" @click="openList(t)">{{ t.name }}</button>
+          </div>
+
+          <div v-if="recent.length" class="vp-hot">
+            <span class="vp-hot-t">最近</span>
+            <button v-for="r in recent" :key="r" class="vp-hot-c" @click="quickSearch(r)">{{ r }}</button>
+            <button class="vp-hot-c clear" @click="clearRecent"><v-icon size="11">mdi-delete-outline</v-icon></button>
+          </div>
+
+          <div v-if="homeLoading" class="vp-rowload">
+            <div class="vp-rowtitle sk-anim"></div>
+            <div class="vp-rail"><div v-for="i in 6" :key="i" class="vp-mini sk-anim"></div></div>
+          </div>
+
+          <div v-else-if="!homeRows.length" class="vp-empty">
+            <span class="vp-empty-orb"><v-icon size="32">mdi-cloud-off-outline</v-icon></span>
+            <p>首页片源暂时开小差</p>
+            <button class="vp-btn primary" @click="loadHome(true)"><v-icon size="14">mdi-refresh</v-icon>重新加载</button>
+          </div>
+
+          <template v-else>
+            <div v-for="(row, ri) in homeRows" :key="ri" class="vp-row">
+              <div class="vp-rowhead">
+                <span class="vp-rowtitle">{{ row.name }}</span>
+                <button v-if="row.kw" class="vp-more" @click="openList({ id: row.kw, name: row.name })">更多<v-icon size="13">mdi-chevron-right</v-icon></button>
+              </div>
+              <div class="vp-rail">
+                <div v-for="it in row.items" :key="it.src + it.id" class="vp-card rail" @click="openDetail(it)">
+                  <div class="vp-poster" :style="it.pic ? { backgroundImage: `url(${it.pic})` } : {}">
+                    <span v-if="!it.pic" class="vp-noimg">无海报</span>
+                    <span class="vp-grad"></span>
+                    <span v-if="it.remarks" class="vp-rem">{{ it.remarks }}</span>
+                    <span class="vp-play-ico"><v-icon size="26">mdi-play-circle</v-icon></span>
                   </div>
-                  <p v-if="detail.content" class="vp-story">{{ detail.content }}</p>
-                  <div class="vp-actions">
-                    <button class="vp-btn primary" @click="playEp(0, true)"><v-icon size="15">mdi-play</v-icon>从头播放</button>
-                    <button class="vp-btn" @click="useFallback = !useFallback"><v-icon size="15">mdi-swap-horizontal</v-icon>{{ useFallback ? '用直连播放' : '切备用线路' }}</button>
-                    <button class="vp-btn" @click="detail = null"><v-icon size="15">mdi-arrow-left</v-icon>返回</button>
-                  </div>
+                  <div class="vp-line">{{ it.name }}</div>
                 </div>
               </div>
             </div>
 
-            <div class="vp-player-wrap">
-              <video v-show="!useFallback" ref="videoEl" class="vp-video" controls playsinline></video>
-              <iframe v-show="useFallback && fallbackSrc" class="vp-frame" :src="fallbackSrc"
-                      allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
-              <div v-if="loadingEp" class="vp-loading">
-                <div class="vp-spin"></div>
-                <p>{{ loadMsg }}</p>
-              </div>
-              <div v-if="playErr" class="vp-err">
-                <p>{{ playErr }}</p>
-                <button class="vp-btn primary" @click="useFallback = true">用备用线路播放</button>
+            <div v-if="favs.length" class="vp-row">
+              <div class="vp-rowhead"><span class="vp-rowtitle">❤️ 我的收藏</span></div>
+              <div class="vp-rail">
+                <div v-for="f in favs" :key="'fav' + f.name" class="vp-card rail" @click="openDetailCheat(f)">
+                  <div class="vp-poster" :style="f.pic ? { backgroundImage: `url(${f.pic})` } : {}"><span class="vp-grad"></span><span class="vp-play-ico"><v-icon size="26">mdi-play-circle</v-icon></span></div>
+                  <div class="vp-line">{{ f.name }}</div>
+                </div>
               </div>
             </div>
+          </template>
+        </div>
 
-            <div v-if="curEp" class="vp-now">正在播放：{{ curEp.name }}<span v-if="detail.src" class="vp-now-src">· 线路 {{ detail.src }}</span>
-              <span v-if="qualities.length" class="vp-qwrap">
-                <button v-for="(q, i) in qualities" :key="i" :class="['vp-qchip', { on: i === curLevel }]" @click="setLevel(i)">{{ q }}</button>
-              </span>
-            </div>
-
-            <div class="vp-eps">
-              <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-ep', { on: i === curIdx }]" @click="playEp(i)">
-                {{ e.name }}
-              </button>
+        <!-- ==================== 分类列表 ==================== -->
+        <div v-else-if="view === 'list'" class="vp-body">
+          <div class="vp-lhead">
+            <span class="vp-ltitle">{{ listTitle }}</span>
+            <span class="vp-lcount" v-if="listItems.length">已加载 {{ listItems.length }} 部</span>
+          </div>
+          <div v-if="listLoading && !listItems.length" class="vp-grid">
+            <div v-for="i in 12" :key="i" class="vp-card"><div class="vp-poster sk-anim"></div><div class="vp-line bar sk-anim"></div></div>
+          </div>
+          <div v-else class="vp-grid">
+            <div v-for="it in listItems" :key="it.src + it.id" class="vp-card" @click="openDetail(it)">
+              <div class="vp-poster" :style="it.pic ? { backgroundImage: `url(${it.pic})` } : {}">
+                <span v-if="!it.pic" class="vp-noimg">无海报</span>
+                <span class="vp-grad"></span>
+                <span v-if="it.remarks" class="vp-rem">{{ it.remarks }}</span>
+                <span class="vp-play-ico"><v-icon size="30">mdi-play-circle</v-icon></span>
+              </div>
+              <div class="vp-line">{{ it.name }}</div>
             </div>
           </div>
-        </transition>
+          <div class="vp-morewrap">
+            <button v-if="listHasMore" class="vp-btn primary" :disabled="listLoading" @click="loadMore">
+              <v-icon size="14">{{ listLoading ? 'mdi-loading mdi-spin' : 'mdi-chevron-down' }}</v-icon>{{ listLoading ? '加载中…' : '加载更多' }}
+            </button>
+            <span v-else-if="listItems.length" class="vp-end">— 到底啦 —</span>
+          </div>
+        </div>
+
+        <!-- ==================== 搜索结果 ==================== -->
+        <div v-else-if="view === 'search'" class="vp-body">
+          <div class="vp-lhead"><span class="vp-ltitle">「{{ lastKw }}」的搜索结果</span><span class="vp-lcount">{{ results.length }} 部</span></div>
+          <div v-if="searching" class="vp-grid">
+            <div v-for="i in 10" :key="i" class="vp-card"><div class="vp-poster sk-anim"></div><div class="vp-line bar sk-anim"></div></div>
+          </div>
+          <div v-else-if="results.length" class="vp-grid">
+            <div v-for="r in results" :key="r.src + r.id" class="vp-card" @click="openDetail(r)">
+              <div class="vp-poster" :style="r.pic ? { backgroundImage: `url(${r.pic})` } : {}">
+                <span v-if="!r.pic" class="vp-noimg">无海报</span>
+                <span class="vp-grad"></span>
+                <span class="vp-src" :class="{ star: r.src === bestSrc }">{{ r.src === bestSrc ? '★ ' : '' }}{{ r.src }}</span>
+                <span class="vp-play-ico"><v-icon size="30">mdi-play-circle</v-icon></span>
+              </div>
+              <div class="vp-line">{{ r.name }}</div>
+            </div>
+          </div>
+          <div v-else class="vp-empty err">
+            <span class="vp-empty-orb"><v-icon size="32">mdi-movie-off-outline</v-icon></span>
+            <p>没搜到「{{ lastKw }}」<br><small>换个片名，或点下方按钮重试</small></p>
+            <button class="vp-btn primary" @click="doSearch"><v-icon size="14">mdi-refresh</v-icon>再试一次</button>
+          </div>
+        </div>
+
+        <!-- ==================== 详情播放 ==================== -->
+        <div v-else-if="view === 'detail' && detail" class="vp-body detail">
+          <div class="vp-hero" :style="detail.pic ? { backgroundImage: `url(${detail.pic})` } : {}">
+            <div class="vp-hero-mask"></div>
+            <div class="vp-hero-in">
+              <div class="vp-hero-poster" :style="detail.pic ? { backgroundImage: `url(${detail.pic})` } : {}"></div>
+              <div class="vp-hero-info">
+                <h3>{{ detail.name }}</h3>
+                <div class="vp-meta">
+                  <span v-if="detail.year">{{ detail.year }}</span>
+                  <span v-if="detail.type">{{ detail.type }}</span>
+                  <span v-if="detail.area">{{ detail.area }}</span>
+                  <span v-if="detail.remarks">{{ detail.remarks }}</span>
+                  <span v-if="detail.eps.length">{{ detail.eps.length }} 集</span>
+                  <span class="src">线路 {{ detail.src }}</span>
+                </div>
+                <p v-if="detail.content" class="vp-story">{{ detail.content }}</p>
+                <div class="vp-actions">
+                  <button class="vp-btn primary" @click="playEp(prog.ep || 0, true)"><v-icon size="15">mdi-play</v-icon>{{ prog.ep ? '续播 第' + (prog.ep + 1) + ' 集' : '从头播放' }}</button>
+                  <button class="vp-btn" @click="toggleFav()"><v-icon size="15">{{ isFav ? 'mdi-heart' : 'mdi-heart-outline' }}</v-icon>{{ isFav ? '已收藏' : '收藏' }}</button>
+                  <button class="vp-btn" @click="switchSource()"><v-icon size="15">mdi-swap-horizontal</v-icon>换源</button>
+                  <button class="vp-btn" @click="toggleFallback()"><v-icon size="15">mdi-television-classic</v-icon>{{ useFallback ? '直连播放' : '备用线路' }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="vp-player-wrap">
+            <video v-show="!useFallback" ref="videoEl" class="vp-video" controls playsinline @ended="onEnded"></video>
+            <iframe v-show="useFallback && fallbackSrc" class="vp-frame" :src="fallbackSrc" allow="autoplay; encrypted-media; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>
+            <div v-if="loadingEp" class="vp-loading"><div class="vp-spin"></div><p>{{ loadMsg }}</p></div>
+            <transition name="vp-drop">
+              <div v-if="playErr" class="vp-err">
+                <p>{{ playErr }}</p>
+                <div class="vp-err-btns">
+                  <button class="vp-btn primary" @click="recoverPlay()"><v-icon size="14">mdi-auto-fix</v-icon>自动恢复</button>
+                  <button class="vp-btn" @click="switchSource()"><v-icon size="14">mdi-swap-horizontal</v-icon>换源</button>
+                </div>
+              </div>
+            </transition>
+          </div>
+
+          <div class="vp-ctl">
+            <div class="vp-now">
+              <span v-if="curEp">▶ {{ curEp.name }}</span>
+              <template v-if="detail.eps.length > 1">
+                <button class="vp-mini" :disabled="curIdx <= 0" @click="playEp(curIdx - 1)"><v-icon size="13">mdi-skip-previous</v-icon></button>
+                <button class="vp-mini" :disabled="curIdx >= detail.eps.length - 1" @click="playEp(curIdx + 1)"><v-icon size="13">mdi-skip-next</v-icon></button>
+              </template>
+              <label class="vp-auto"><input type="checkbox" v-model="autoNext" /> 自动连播</label>
+            </div>
+            <div class="vp-now">
+              <span class="vp-qwrap">
+                <button v-for="(r, i) in rates" :key="i" :class="['vp-qchip', { on: rate === r }]" @click="setRate(r)">{{ r }}x</button>
+              </span>
+              <span v-if="qualities.length" class="vp-qwrap">
+                <button v-for="(q, i) in qualities" :key="'q' + i" :class="['vp-qchip', { on: i === curLevel }]" @click="setLevel(i)">{{ q }}</button>
+              </span>
+            </div>
+          </div>
+
+          <div class="vp-eps">
+            <button v-for="(e, i) in detail.eps" :key="i" :class="['vp-ep', { on: i === curIdx }]" @click="playEp(i)">{{ e.name }}</button>
+          </div>
+        </div>
       </div>
     </div>
   </transition>
@@ -152,16 +242,15 @@ export default {
   name: 'VideoPage',
   data() {
     return {
-      visible: false,
-      xs: false,
-      tab: 'search',
-      kw: '',
-      lastKw: '',
-      searched: false,
-      searching: false,
-      results: [],
-      hotWords: ['斗罗大陆', '完美世界', '遮天', '火影忍者', '海贼王', '咒术回战', '繁花', '庆余年'],
-      // VIP 解析线路（来自开源油猴脚本 video_vip 的公开线路）
+      visible: false, xs: false,
+      view: 'home',
+      kw: '', lastKw: '', searched: false, searching: false, results: [],
+      sugList: [], sugOpen: false, _sugTimer: null,
+      homeRows: [], homeTypes: [], homeLoading: false,
+      listKw: '', listTitle: '', listItems: [], listPage: 0, listHasMore: true, listLoading: false,
+      recent: [], bestSrc: '', favs: [], prog: { ep: 0, t: 0 },
+      toast: '', _toastTimer: null,
+      rates: [0.75, 1, 1.25, 1.5, 2], rate: 1, autoNext: true,
       lines: [
         { name: '虾米解析', url: 'https://jx.xmflv.com/?url=' },
         { name: 'HLS解析', url: 'https://jx.hls.one/?url=' },
@@ -179,79 +268,251 @@ export default {
         { name: '789解析', url: 'https://jiexi.789jiexi.icu:4433/?url=' },
         { name: '极速解析', url: 'https://jx.2s0.cn/player/?url=' },
       ],
-      vipUrl: '',
-      vipLine: null,
-      vipSrc: '',
-      detail: null,
-      curIdx: -1,
-      curEp: null,
-      useFallback: false,
-      fallbackSrc: '',
-      loadingEp: false,
-      loadMsg: '',
-      playErr: '',
-      _hls: null,
-      qualities: [],
-      curLevel: -1,
+      vipUrl: '', vipLine: null, vipSrc: '',
+      detail: null, curIdx: -1, curEp: null,
+      useFallback: false, fallbackSrc: '',
+      loadingEp: false, loadMsg: '', playErr: '',
+      qualities: [], curLevel: -1,
+      _hls: null, _retriedLevel: false, _progTimer: 0, _lastProgPush: 0,
     };
+  },
+  computed: {
+    isFav() { return this.detail ? this.favs.some((f) => f.name === this.detail.name) : false; },
   },
   mounted() {
     const sync = () => { this.xs = window.innerWidth < 700; };
     sync();
     try { window.addEventListener('resize', sync); } catch (e) {}
+    try {
+      this.bestSrc = localStorage.getItem('wb_video_src') || '';
+      this.recent = JSON.parse(localStorage.getItem('wb_video_recent') || '[]');
+      this.favs = JSON.parse(localStorage.getItem('wb_video_fav') || '[]');
+    } catch (e) {}
   },
   methods: {
-    open() { this.visible = true; },
-    close() {
-      this.visible = false;
+    open() { this.visible = true; if (!this.homeRows.length) this.loadHome(); this.syncAll(); },
+    // ---------- 账号同步（收藏/进度） ----------
+    authToken() { try { return localStorage.getItem('disease_token') || ''; } catch (e) { return ''; } },
+    async syncAll() {
+      const t = this.authToken();
+      if (!t) return;
+      try {
+        const r = await fetch('/api/video/sync', { headers: { Authorization: 'Bearer ' + t } });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!d.logged_in) return;
+        // 合并收藏：服务端优先，本地独有的补传
+        const serverNames = new Set((d.favs || []).map((f) => f.name));
+        const localOnly = this.favs.filter((f) => !serverNames.has(f.name));
+        this.favs = (d.favs || []).concat(localOnly).slice(0, 60);
+        localOnly.forEach((f) => this.pushFav(f, true));
+        try { localStorage.setItem('wb_video_fav', JSON.stringify(this.favs)); } catch (e) {}
+        // 合并进度：服务端优先，本地独有的补传
+        try {
+          const local = JSON.parse(localStorage.getItem('wb_video_prog') || '{}');
+          const merged = Object.assign({}, local, d.prog || {});
+          localStorage.setItem('wb_video_prog', JSON.stringify(merged));
+          Object.keys(local).forEach((k) => { if (!(d.prog || {})[k]) this.pushProgRaw(k, local[k]); });
+        } catch (e) {}
+      } catch (e) {}
+    },
+    pushFav(f, on) {
+      const t = this.authToken();
+      if (!t) return;
+      fetch('/api/video/fav', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+        body: JSON.stringify({ name: f.name, src: f.src || '', vod_id: f.id || f.vod_id || '', pic: f.pic || '', on: !!on }) }).catch(() => {});
+    },
+    pushProgRaw(name, pr) {
+      const t = this.authToken();
+      if (!t || !pr) return;
+      fetch('/api/video/prog', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+        body: JSON.stringify({ name, src: pr.src || '', vod_id: pr.id || '', pic: pr.pic || '', ep: pr.ep || 0, pos: pr.t || 0 }) }).catch(() => {});
+    },
+    close() { this.visible = false; this.stopPlay(); },
+    showToast(msg, ms) {
+      this.toast = msg;
+      clearTimeout(this._toastTimer);
+      this._toastTimer = setTimeout(() => { this.toast = ''; }, ms || 3200);
+    },
+    async fetchJSON(url, tries) {
+      const n = tries || 3;
+      let lastErr = null;
+      for (let i = 0; i < n; i++) {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) { let m = 'HTTP ' + r.status; try { const j = await r.json(); m = (j.detail && (j.detail.message || j.detail)) || m; } catch (e) {} throw new Error(m); }
+          return await r.json();
+        } catch (e) { lastErr = e; if (i < n - 1) await new Promise((res) => setTimeout(res, 500 * (i + 1))); }
+      }
+      throw lastErr || new Error('请求失败');
+    },
+    // ---------- 首页 ----------
+    async loadHome(force) {
+      if (this.homeRows.length && !force) return;
+      this.homeLoading = true;
+      try {
+        const d = await this.fetchJSON('/api/video/home');
+        this.homeRows = d.rows || [];
+        this.homeTypes = d.homeTypes || [];
+      } catch (e) {
+        this.homeRows = [];
+        this.showToast('首页加载失败，可点「重新加载」');
+      }
+      this.homeLoading = false;
+    },
+    goHome() { this.view = 'home'; this.stopPlay(); },
+    // ---------- 搜索 ----------
+    onInput() {
+      clearTimeout(this._sugTimer);
+      const kw = (this.kw || '').trim();
+      if (kw.length < 1) { this.sugList = []; this.sugOpen = false; return; }
+      this._sugTimer = setTimeout(async () => {
+        try {
+          const d = await this.fetchJSON('/api/video/suggest?kw=' + encodeURIComponent(kw), 2);
+          this.sugList = d.list || [];
+          this.sugOpen = this.sugList.length > 0;
+        } catch (e) { this.sugList = []; }
+      }, 260);
+    },
+    closeSugSoon() { setTimeout(() => { this.sugOpen = false; }, 160); },
+    quickSearch(w) { this.kw = w; this.sugOpen = false; this.doSearch(); },
+    remember(kw) {
+      this.recent = [kw].concat(this.recent.filter((x) => x !== kw)).slice(0, 6);
+      try { localStorage.setItem('wb_video_recent', JSON.stringify(this.recent)); } catch (e) {}
+    },
+    clearRecent() { this.recent = []; try { localStorage.removeItem('wb_video_recent'); } catch (e) {} },
+    async doSearch() {
+      const kw = (this.kw || '').trim();
+      if (!kw || this.searching) return;
+      this.searching = true; this.searched = true; this.lastKw = kw; this.sugOpen = false;
+      this.view = 'search'; this.stopPlay();
+      try {
+        const j = await this.fetchJSON('/api/video/search?kw=' + encodeURIComponent(kw));
+        let list = j.list || [];
+        if (this.bestSrc) list = list.slice().sort((a, b) => (b.src === this.bestSrc) - (a.src === this.bestSrc));
+        this.results = list;
+        this.remember(kw);
+      } catch (e) { this.results = []; this.showToast('搜索失败，可点「再试一次」'); }
+      this.searching = false;
+    },
+    // ---------- 分类列表 ----------
+    async openList(t) {
+      this.view = 'list';
+      this.listKw = t.id || '';
+      this.listTitle = t.name || '全部';
+      this.listItems = []; this.listPage = 0; this.listHasMore = true;
       this.stopPlay();
+      await this.loadMore();
+    },
+    async loadMore() {
+      if (this.listLoading) return;
+      this.listLoading = true;
+      const page = this.listPage + 1;
+      try {
+        const d = await this.fetchJSON('/api/video/list?kw=' + encodeURIComponent(this.listKw) + '&page=' + page + '&size=24');
+        const items = d.items || [];
+        const seen = new Set(this.listItems.map((x) => x.id + x.src));
+        this.listItems = this.listItems.concat(items.filter((x) => !seen.has(x.id + x.src)));
+        this.listPage = page;
+        this.listHasMore = !!d.hasMore && items.length > 0;
+      } catch (e) {
+        this.showToast('加载失败，稍后再试');
+        this.listHasMore = false;
+      }
+      this.listLoading = false;
+    },
+    // ---------- 详情 ----------
+    openDetailCheat(f) { this.openDetail({ id: f.id, name: f.name, src: f.src, pic: f.pic }); },
+    async openDetail(r) {
+      this.stopPlay();
+      this.view = 'detail';
+      this.loadingEp = false; this.playErr = '';
+      try {
+        const d = await this.fetchJSON('/api/video/detail?id=' + encodeURIComponent(r.id) + '&src=' + encodeURIComponent(r.src || '主源') + '&fallback=1');
+        if (!d.eps || !d.eps.length) { this.showToast('这部暂时没有可播剧集，换一部试试'); return; }
+        this.detail = d;
+        this.curIdx = -1; this.curEp = null; this.useFallback = false; this.fallbackSrc = '';
+        this.qualities = []; this.curLevel = -1;
+        if (d.recovered) this.showToast('原线路没资源，已自动切换到「' + d.src + '」线路');
+        this.bestSrc = d.src;
+        try { localStorage.setItem('wb_video_src', d.src); } catch (e) {}
+        try {
+          const all = JSON.parse(localStorage.getItem('wb_video_prog') || '{}');
+          this.prog = all[d.name] || { ep: 0, t: 0 };
+        } catch (e) { this.prog = { ep: 0, t: 0 }; }
+      } catch (e) { this.showToast((e && e.message) || '加载详情失败'); }
+    },
+    saveProg(force) {
+      if (!this.detail || this.curIdx < 0) return;
+      try {
+        const all = JSON.parse(localStorage.getItem('wb_video_prog') || '{}');
+        all[this.detail.name] = { ep: this.curIdx, t: Math.floor((this.$refs.videoEl && this.$refs.videoEl.currentTime) || 0), src: this.detail.src, id: this.detail.id, pic: this.detail.pic };
+        const keys = Object.keys(all);
+        if (keys.length > 30) delete all[keys[0]];
+        localStorage.setItem('wb_video_prog', JSON.stringify(all));
+        const now = Date.now();
+        if (force || now - (this._lastProgPush || 0) > 10000) {
+          this._lastProgPush = now;
+          this.pushProgRaw(this.detail.name, { src: this.detail.src, id: this.detail.id, pic: this.detail.pic, ep: this.curIdx, t: Math.floor((this.$refs.videoEl && this.$refs.videoEl.currentTime) || 0) });
+        }
+      } catch (e) {}
+    },
+    toggleFav() {
+      if (!this.detail) return;
+      const i = this.favs.findIndex((f) => f.name === this.detail.name);
+      if (i >= 0) { const gone = this.favs[i]; this.favs.splice(i, 1); this.showToast('已取消收藏'); this.pushFav(gone, false); }
+      else {
+        this.favs.unshift({ name: this.detail.name, id: this.detail.id, src: this.detail.src, pic: this.detail.pic });
+        this.showToast('已收藏，首页可见');
+        this.pushFav(this.favs[0], true);
+      }
+      this.favs = this.favs.slice(0, 30);
+      try { localStorage.setItem('wb_video_fav', JSON.stringify(this.favs)); } catch (e) {}
+    },
+    switchSource() {
+      if (!this.detail) return;
+      const pool = this.results.length ? this.results : this.listItems;
+      const others = (pool || []).filter((x) => x.name === this.detail.name && x.src !== this.detail.src);
+      if (!others.length) { this.showToast('没有别的线路了，可用备用线路播'); return; }
+      this.showToast('正在换到「' + others[0].src + '」…');
+      this.openDetail(others[0]);
+    },
+    toggleFallback() {
+      this.useFallback = !this.useFallback;
+      if (this.useFallback && !this.fallbackSrc && this.curEp) {
+        this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(this.curEp.url);
+      }
     },
     stopPlay() {
       try { if (this._hls) { this._hls.destroy(); this._hls = null; } } catch (e) {}
       const v = this.$refs.videoEl;
       if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {} }
     },
-    quickSearch(w) { this.kw = w; this.doSearch(); },
-    async doSearch() {
-      const kw = (this.kw || '').trim();
-      if (!kw || this.searching) return;
-      this.searching = true; this.searched = true; this.lastKw = kw; this.detail = null;
-      this.stopPlay();
-      try {
-        const r = await fetch('/api/video/search?kw=' + encodeURIComponent(kw));
-        const j = await r.json();
-        this.results = j.list || [];
-      } catch (e) { this.results = []; }
-      this.searching = false;
-    },
-    async openDetail(r) {
-      this.stopPlay();
-      this.loadingEp = false; this.playErr = '';
-      try {
-        const res = await fetch('/api/video/detail?id=' + encodeURIComponent(r.id) + '&src=' + encodeURIComponent(r.src || '主源'));
-        const d = await res.json();
-        if (!d.eps) { alert('这部暂时没片源，换一部试试'); return; }
-        this.detail = d;
-        this.curIdx = -1; this.curEp = null;
-        this.useFallback = false; this.fallbackSrc = '';
-      } catch (e) { alert('加载详情失败，稍后再试'); }
-    },
-    async playEp(i, auto) {
+    async playEp(i, keepTime) {
       if (!this.detail || !this.detail.eps[i]) return;
       this.curIdx = i;
-      const ep = this.detail.eps[i];
-      this.curEp = ep;
-      this.playErr = '';
-      this.useFallback = false;
-      this.fallbackSrc = '';
-      this.loadingEp = true;
-      this.loadMsg = '正在建立直连…';
+      this.curEp = this.detail.eps[i];
+      this.playErr = ''; this.useFallback = false; this.fallbackSrc = '';
+      this._retriedLevel = false;
+      this.loadingEp = true; this.loadMsg = '正在建立直连…';
       await this.$nextTick();
-      const ok = await this.nativePlay(ep.url);
+      const ok = await this.nativePlay(this.curEp.url);
       this.loadingEp = false;
-      if (!ok) {
-        this.playErr = '直连没能播放（片源可能限制跨域）';
+      if (!ok) this.playErr = '直连没能播放（片源可能限制跨域）';
+      this.saveProg();
+    },
+    onEnded() {
+      if (!this.detail) return;
+      this.saveProg();
+      if (this.autoNext && this.curIdx < this.detail.eps.length - 1) {
+        this.showToast('自动连播：' + this.detail.eps[this.curIdx + 1].name, 2600);
+        this.playEp(this.curIdx + 1);
       }
+    },
+    setRate(r) {
+      this.rate = r;
+      const v = this.$refs.videoEl;
+      if (v) v.playbackRate = r;
     },
     async nativePlay(url) {
       const v = this.$refs.videoEl;
@@ -259,46 +520,50 @@ export default {
       try { if (this._hls) { this._hls.destroy(); this._hls = null; } } catch (e) {}
       const isM3u8 = /\.m3u8(\?|$)/i.test(url);
       if (isM3u8 && v.canPlayType('application/vnd.apple.mpegurl') && !window.MediaSource) {
-        // Safari 原生 HLS
-        v.src = url;
-        v.play().catch(() => {});
-        return true;
+        v.src = url; v.playbackRate = this.rate; v.play().catch(() => {}); return true;
       }
       if (isM3u8) {
         try {
           const mod = await import('hls.js');
           const Hls = mod.default || mod.Hls;
           if (Hls && Hls.isSupported()) {
-            const hls = new Hls({ maxBufferLength: 30, manifestLoadingTimeOut: 15000 });
+            const hls = new Hls({ maxBufferLength: 40, manifestLoadingTimeOut: 15000, fragLoadingMaxRetry: 4 });
             this._hls = hls;
             this.qualities = []; this.curLevel = -1;
             hls.on(Hls.Events.MANIFEST_PARSED, (e, d) => {
               const lv = (d && d.levels) || hls.levels || [];
               this.qualities = lv.map((l) => (l.height ? l.height + 'P' : Math.round((l.bitrate || 0) / 1000) + 'k'));
               if (lv.length > 1) { hls.currentLevel = lv.length - 1; this.curLevel = lv.length - 1; }
-              else if (lv.length === 1) { this.curLevel = 0; }
+              else if (lv.length === 1) this.curLevel = 0;
             });
             hls.on(Hls.Events.LEVEL_SWITCHED, (e, d) => { this.curLevel = d.level; });
             hls.on(Hls.Events.ERROR, (e, data) => {
-              if (data && data.fatal) {
-                this.playErr = '直连播放失败，已为你准备好备用线路';
-                this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(url);
-                this.useFallback = true;
+              if (!data || !data.fatal) return;
+              if (!this._retriedLevel) {
+                this._retriedLevel = true;
+                try { if (this.curLevel > 0) hls.currentLevel = 0; hls.startLoad(); this.showToast('直连不稳，已自动降低清晰度重试'); return; } catch (err) {}
               }
+              this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(url);
+              this.playErr = '直连播放失败，已准备好备用线路';
             });
             hls.loadSource(url);
             hls.attachMedia(v);
+            v.playbackRate = this.rate;
             v.play().catch(() => {});
             return true;
           }
         } catch (e) {}
       }
-      // 直链 mp4 或其他
-      try { v.src = url; v.play().catch(() => {}); return true; } catch (e) { return false; }
+      try { v.src = url; v.playbackRate = this.rate; v.play().catch(() => {}); return true; } catch (e) { return false; }
     },
-    setLevel(i) {
-      if (this._hls) { this._hls.currentLevel = i; this.curLevel = i; }
+    recoverPlay() {
+      this.playErr = '';
+      if (this.curEp && !this.fallbackSrc) this.fallbackSrc = 'https://wsyzy.vip/m3u8/?url=' + encodeURIComponent(this.curEp.url);
+      if (this.fallbackSrc) { this.useFallback = true; this.showToast('已切到备用线路播放'); return; }
+      this.switchSource();
     },
+    setLevel(i) { if (this._hls) { this._hls.currentLevel = i; this.curLevel = i; } },
+    pickLine(l) { this.vipLine = l; if (this.vipUrl.trim()) this.playVip([this.vipUrl]); },
     playVip(urls) {
       const line = this.vipLine || this.lines[0];
       this.vipLine = line;
@@ -307,126 +572,168 @@ export default {
       this.vipSrc = line.url + encodeURIComponent(target.trim());
     },
   },
+  watch: {
+    visible(v) {
+      if (!v) this.stopPlay();
+    },
+  },
 };
 </script>
 
 <style scoped>
-.vp-mask { position: fixed; inset: 0; z-index: 2350; display: flex; align-items: center; justify-content: center;
-  background: rgba(4, 7, 18, .78); backdrop-filter: blur(10px); }
-.vp-shell { position: relative; width: min(1080px, 96vw); height: min(760px, 94vh); overflow: hidden;
-  border-radius: 22px; display: flex; flex-direction: column;
-  background: radial-gradient(1200px 500px at 10% -10%, #17203a 0%, #0b1020 45%, #070a14 100%);
-  border: 1px solid rgba(120, 160, 255, .18);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 255, 255, .06); }
+.vp-mask { position: fixed; inset: 0; z-index: 2350; display: flex; align-items: center; justify-content: center; background: rgba(4, 7, 18, .82); backdrop-filter: blur(12px); }
+.vp-shell { position: relative; width: min(1120px, 96vw); height: min(780px, 94vh); overflow: hidden; border-radius: 22px; display: flex; flex-direction: column;
+  background: radial-gradient(1200px 520px at 10% -10%, #17203a 0%, #0b1020 45%, #06080f 100%);
+  border: 1px solid rgba(120, 160, 255, .18); box-shadow: 0 30px 90px rgba(0, 0, 0, .68), inset 0 1px 0 rgba(255, 255, 255, .06); }
 .vp-shell.is-full { width: 100vw; height: 100vh; border-radius: 0; }
 .vp-aurora { position: absolute; inset: 0; pointer-events: none; opacity: .5; }
-.vp-aurora i { position: absolute; border-radius: 50%; filter: blur(70px); }
-.vp-aurora .a1 { width: 340px; height: 340px; left: -90px; top: -120px; background: rgba(56, 189, 248, .30); }
-.vp-aurora .a2 { width: 300px; height: 300px; right: -80px; top: 20%; background: rgba(217, 70, 239, .22); }
-.vp-aurora .a3 { width: 300px; height: 300px; left: 35%; bottom: -140px; background: rgba(250, 204, 21, .14); }
+.vp-aurora i { position: absolute; border-radius: 50%; filter: blur(72px); }
+.vp-aurora .a1 { width: 350px; height: 350px; left: -100px; top: -130px; background: rgba(56, 189, 248, .3); }
+.vp-aurora .a2 { width: 310px; height: 310px; right: -90px; top: 18%; background: rgba(217, 70, 239, .22); }
+.vp-aurora .a3 { width: 310px; height: 310px; left: 34%; bottom: -150px; background: rgba(250, 204, 21, .13); }
 
-.vp-head { position: relative; z-index: 2; display: flex; align-items: center; gap: 14px; padding: 16px 20px 10px; }
+.vp-head { position: relative; z-index: 3; display: flex; align-items: center; gap: 12px; padding: 15px 20px 8px; }
+.vp-back { width: 32px; height: 32px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, .3); background: rgba(255, 255, 255, .06); color: #cbd5e1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.vp-back:hover { border-color: #38bdf8; color: #e0f2fe; }
 .vp-brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.vp-logo { font-size: 26px; filter: drop-shadow(0 0 12px rgba(250, 204, 21, .6)); }
-.vp-title { font-size: 18px; font-weight: 900; letter-spacing: .5px;
-  background: linear-gradient(90deg, #7dd3fc, #e879f9 55%, #fde68a); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.vp-sub { font-size: 11px; font-weight: 600; color: #8b9cc7; margin-left: 6px; letter-spacing: 0; -webkit-text-fill-color: #8b9cc7; }
+.vp-logo { font-size: 25px; filter: drop-shadow(0 0 12px rgba(250, 204, 21, .6)); }
+.vp-title { font-size: 17.5px; font-weight: 900; background: linear-gradient(90deg, #7dd3fc, #e879f9 55%, #fde68a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.vp-sub { font-size: 11px; font-weight: 600; color: #8b9cc7; margin-left: 6px; -webkit-text-fill-color: #8b9cc7; }
 .vp-note { font-size: 10.5px; color: #61708f; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vp-tabs { display: flex; gap: 6px; }
-.vp-tab { border: 1px solid rgba(125, 211, 252, .25); background: rgba(125, 211, 252, .08); color: #bae6fd;
-  font-size: 12.5px; font-weight: 700; padding: 7px 14px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all .2s; }
+.vp-tab { border: 1px solid rgba(125, 211, 252, .25); background: rgba(125, 211, 252, .08); color: #bae6fd; font-size: 12.5px; font-weight: 700; padding: 7px 14px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .vp-tab.on { background: linear-gradient(120deg, #0ea5e9, #8b5cf6); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(56, 189, 248, .35); }
-.vp-x { width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .06); color: #cbd5e1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.vp-x { width: 33px; height: 33px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .06); color: #cbd5e1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .vp-x:hover { background: rgba(244, 63, 94, .2); color: #fda4af; }
 
+.vp-toast { position: relative; z-index: 3; margin: 0 20px 6px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #d9f99d;
+  background: linear-gradient(90deg, rgba(132, 204, 22, .16), rgba(34, 197, 94, .1)); border: 1px solid rgba(163, 230, 53, .4); border-radius: 10px; padding: 7px 12px; }
+.vp-drop-enter-active, .vp-drop-leave-active { transition: all .25s; }
+.vp-drop-enter-from, .vp-drop-leave-to { opacity: 0; transform: translateY(-8px); }
+
 .vp-body { position: relative; z-index: 1; flex: 1; overflow-y: auto; padding: 6px 20px 22px; }
-.vp-search { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, .05);
-  border: 1.5px solid rgba(125, 211, 252, .22); border-radius: 999px; padding: 4px 6px 4px 14px; transition: all .25s; }
+.vp-body.detail { padding: 0 20px 24px; }
+
+.vp-searchwrap { position: relative; z-index: 6; }
+.vp-search { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, .05); border: 1.5px solid rgba(125, 211, 252, .22); border-radius: 999px; padding: 4px 6px 4px 14px; transition: all .25s; }
 .vp-search:focus-within { border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, .14), 0 0 26px rgba(56, 189, 248, .22); }
 .vp-search-ico { color: #7dd3fc; }
-.vp-input { flex: 1; background: transparent; border: none; outline: none; color: #e2e8f0; font-size: 14px; padding: 10px 4px; }
+.vp-input { flex: 1; background: transparent; border: none; outline: none; color: #e2e8f0; font-size: 14px; padding: 10px 4px; min-width: 0; }
 .vp-input::placeholder { color: #5b6b8c; }
-.vp-go { border: none; border-radius: 999px; padding: 10px 22px; font-size: 13.5px; font-weight: 800; cursor: pointer;
-  color: #041024; background: linear-gradient(120deg, #7dd3fc, #a78bfa); box-shadow: 0 6px 20px rgba(125, 211, 252, .35); }
+.vp-go { border: none; border-radius: 999px; padding: 10px 22px; font-size: 13.5px; font-weight: 800; cursor: pointer; flex: none; color: #041024; background: linear-gradient(120deg, #7dd3fc, #a78bfa); box-shadow: 0 6px 20px rgba(125, 211, 252, .35); }
 .vp-go:disabled { opacity: .5; cursor: not-allowed; }
-.vp-hot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 12px 2px 16px; }
-.vp-hot-t { font-size: 11px; color: #64748b; }
-.vp-hot-c { border: 1px dashed rgba(148, 163, 184, .4); background: transparent; color: #94a3b8; font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
-.vp-hot-c:hover { color: #7dd3fc; border-color: #38bdf8; }
+.vp-sug { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: #101728; border: 1px solid rgba(125, 211, 252, .25); border-radius: 14px; overflow: hidden; box-shadow: 0 18px 40px rgba(0, 0, 0, .55); }
+.vp-sug button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; color: #cbd5e1; font-size: 13px; padding: 10px 14px; cursor: pointer; }
+.vp-sug button:hover { background: rgba(56, 189, 248, .12); color: #e0f2fe; }
 
-.vp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 14px; }
+.vp-chips { display: flex; gap: 7px; flex-wrap: wrap; margin: 12px 2px 4px; }
+.vp-chip { border: 1px solid rgba(148, 163, 184, .28); background: rgba(255, 255, 255, .04); color: #b6c2d9; font-size: 12.5px; padding: 6px 15px; border-radius: 999px; cursor: pointer; transition: all .18s; }
+.vp-chip:hover { border-color: #38bdf8; color: #e0f2fe; background: rgba(56, 189, 248, .1); }
+
+.vp-hot { display: flex; align-items: center; gap: 8px; margin: 10px 2px 0; overflow: hidden; }
+.vp-hot-t { font-size: 11px; color: #64748b; flex: none; }
+.vp-hot-c { border: 1px dashed rgba(148, 163, 184, .4); background: transparent; color: #94a3b8; font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer; flex: none; }
+.vp-hot-c:hover { color: #7dd3fc; border-color: #38bdf8; }
+.vp-hot-c.clear { padding: 3px 7px; }
+
+.vp-row { margin-top: 16px; }
+.vp-rowhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.vp-rowtitle { font-size: 14px; font-weight: 800; color: #e2e8f0; }
+.vp-rowtitle.sk-anim { width: 120px; height: 14px; border-radius: 6px; background: #131b2f; }
+.vp-more { border: none; background: transparent; color: #7dd3fc; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; }
+.vp-more:hover { color: #e0f2fe; }
+.vp-rail { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 10px; scroll-behavior: smooth; }
+.vp-rail::-webkit-scrollbar { height: 6px; }
+.vp-rail::-webkit-scrollbar-thumb { background: rgba(125, 211, 252, .3); border-radius: 3px; }
+.vp-card.rail { flex: none; width: 118px; }
+.vp-mini { flex: none; width: 118px; aspect-ratio: 2/3; border-radius: 12px; background: #131b2f; }
+.vp-rowload { margin-top: 16px; }
+
+.vp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 14px; margin-top: 14px; }
 .vp-card { cursor: pointer; transition: transform .22s cubic-bezier(.2, .8, .2, 1.2); }
 .vp-card:hover { transform: translateY(-5px) scale(1.03); }
-.vp-poster { position: relative; width: 100%; aspect-ratio: 2/3; border-radius: 12px; background: #101830 center/cover no-repeat;
-  border: 1px solid rgba(148, 163, 184, .16); overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.vp-card:hover .vp-poster { border-color: rgba(56, 189, 248, .65); box-shadow: 0 10px 30px rgba(56, 189, 248, .28); }
-.vp-play-ico { opacity: 0; transition: opacity .2s; color: #fff; filter: drop-shadow(0 2px 10px rgba(0, 0, 0, .7)); }
-.vp-card:hover .vp-play-ico { opacity: 1; }
-.vp-noimg { font-size: 11px; color: #475569; }
+.vp-poster { position: relative; width: 100%; aspect-ratio: 2/3; border-radius: 12px; background: #101830 center/cover no-repeat; border: 1px solid rgba(148, 163, 184, .16); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.vp-card:hover .vp-poster { border-color: rgba(56, 189, 248, .65); box-shadow: 0 10px 30px rgba(56, 189, 248, .3); }
+.vp-grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 48%, rgba(2, 6, 23, .8)); }
+.vp-play-ico { position: relative; opacity: 0; transform: scale(.85); transition: all .22s; color: #fff; filter: drop-shadow(0 2px 10px rgba(0, 0, 0, .7)); }
+.vp-card:hover .vp-play-ico { opacity: 1; transform: scale(1); }
+.vp-noimg { position: relative; font-size: 11px; color: #475569; }
+.vp-rem { position: absolute; right: 6px; bottom: 6px; font-size: 10px; color: #d1fae5; background: rgba(2, 6, 23, .75); border-radius: 5px; padding: 1px 5px; max-width: 86%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-src { position: absolute; top: 6px; left: 6px; font-size: 10px; color: #e0f2fe; background: rgba(2, 6, 23, .72); border: 1px solid rgba(125, 211, 252, .4); border-radius: 6px; padding: 1px 6px; backdrop-filter: blur(4px); max-width: 78%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-src.star { color: #fde68a; border-color: rgba(253, 230, 138, .55); }
 .vp-line { margin-top: 7px; font-size: 12.5px; color: #cbd5e1; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.vp-empty { text-align: center; color: #64748b; padding: 46px 0; }
-.vp-empty p { margin-top: 10px; font-size: 13.5px; }
-.vp-empty.small { padding: 30px 0; }
-
-.sk .vp-poster { background: #131b2f; }
+.vp-line.bar { height: 10px; margin: 8px auto 0; width: 70%; border-radius: 6px; background: #131b2f; }
 .sk-anim { animation: vp-pulse 1.2s ease-in-out infinite; }
-@keyframes vp-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes vp-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
-.vp-tip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #93a4c4; background: rgba(56, 189, 248, .07);
-  border: 1px dashed rgba(56, 189, 248, .3); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+.vp-lhead { display: flex; align-items: baseline; gap: 10px; margin: 6px 2px 2px; }
+.vp-ltitle { font-size: 15px; font-weight: 800; color: #f1f5f9; }
+.vp-lcount { font-size: 11.5px; color: #64748b; }
+.vp-morewrap { text-align: center; margin-top: 18px; }
+.vp-end { font-size: 12px; color: #475569; }
+
+.vp-empty { text-align: center; color: #64748b; padding: 40px 0; }
+.vp-empty p { margin-top: 12px; font-size: 13.5px; line-height: 1.8; color: #94a3b8; }
+.vp-empty small { color: #5b6b8c; font-size: 11.5px; }
+.vp-empty .vp-btn { margin-top: 12px; }
+.vp-empty-orb { display: inline-flex; align-items: center; justify-content: center; width: 74px; height: 74px; border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, rgba(56, 189, 248, .28), rgba(139, 92, 246, .12)); color: #7dd3fc; border: 1px solid rgba(125, 211, 252, .28); }
+.vp-empty-orb.soft { background: radial-gradient(circle at 32% 28%, rgba(250, 204, 21, .22), rgba(236, 72, 153, .1)); color: #fcd34d; border-color: rgba(250, 204, 21, .28); }
+.vp-empty.small { padding: 26px 0; }
+
+.vp-tip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #93a4c4; background: rgba(56, 189, 248, .07); border: 1px dashed rgba(56, 189, 248, .3); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
 .vp-lines { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .vp-line-chip { border: 1px solid rgba(148, 163, 184, .28); background: rgba(255, 255, 255, .04); color: #94a3b8; font-size: 12px; padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: all .18s; }
 .vp-line-chip:hover { color: #e2e8f0; border-color: #8b5cf6; }
-.vp-line-chip.on { background: linear-gradient(120deg, #8b5cf6, #ec4899); color: #fff; border-color: transparent; }
+.vp-line-chip.on { background: linear-gradient(120deg, #8b5cf6, #ec4899); color: #fff; border-color: transparent; box-shadow: 0 4px 14px rgba(139, 92, 246, .35); }
 
-.vp-detail { position: absolute; inset: 0; z-index: 5; overflow-y: auto; padding: 0 20px 24px;
-  background: linear-gradient(180deg, rgba(7, 10, 20, .96), rgba(7, 10, 20, .99)); }
-.vp-hero { position: relative; margin: -1px -20px 16px; padding: 18px 20px; background: #0d1424 center/cover no-repeat; }
-.vp-hero-mask { position: absolute; inset: 0; backdrop-filter: blur(22px) brightness(.42); background: linear-gradient(90deg, rgba(7, 10, 20, .88), rgba(7, 10, 20, .45)); }
+.vp-hero { position: relative; margin: 0 -20px 14px; padding: 16px 20px; background: #0d1424 center/cover no-repeat; }
+.vp-hero-mask { position: absolute; inset: 0; backdrop-filter: blur(24px) brightness(.4); background: linear-gradient(90deg, rgba(7, 10, 20, .92), rgba(7, 10, 20, .4)); }
 .vp-hero-in { position: relative; display: flex; gap: 16px; }
-.vp-hero-poster { width: 116px; aspect-ratio: 2/3; border-radius: 12px; background: #101830 center/cover no-repeat; flex: none;
-  border: 1px solid rgba(125, 211, 252, .3); box-shadow: 0 12px 34px rgba(0, 0, 0, .6); }
-.vp-hero-info h3 { font-size: 20px; font-weight: 900; color: #f1f5f9; margin-bottom: 6px; }
+.vp-hero-poster { width: 112px; aspect-ratio: 2/3; border-radius: 12px; background: #101830 center/cover no-repeat; flex: none; border: 1px solid rgba(125, 211, 252, .3); box-shadow: 0 12px 34px rgba(0, 0, 0, .6); }
+.vp-hero-info h3 { font-size: 19px; font-weight: 900; color: #f1f5f9; margin-bottom: 6px; }
 .vp-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .vp-meta span { font-size: 11px; color: #a5b4fc; background: rgba(99, 102, 241, .18); border: 1px solid rgba(129, 140, 248, .35); padding: 2px 9px; border-radius: 999px; }
+.vp-meta span.src { color: #6ee7b7; background: rgba(16, 185, 129, .14); border-color: rgba(52, 211, 153, .4); }
 .vp-story { font-size: 12px; color: #94a3b8; line-height: 1.7; max-height: 62px; overflow: hidden; margin-bottom: 10px; }
 .vp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.vp-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(148, 163, 184, .3); background: rgba(255, 255, 255, .05); color: #cbd5e1;
-  font-size: 12.5px; font-weight: 700; padding: 8px 14px; border-radius: 10px; cursor: pointer; }
+.vp-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(148, 163, 184, .3); background: rgba(255, 255, 255, .05); color: #cbd5e1; font-size: 12.5px; font-weight: 700; padding: 8px 14px; border-radius: 10px; cursor: pointer; transition: all .18s; }
 .vp-btn:hover { border-color: #38bdf8; color: #e0f2fe; }
 .vp-btn.primary { background: linear-gradient(120deg, #0ea5e9, #8b5cf6); border-color: transparent; color: #fff; box-shadow: 0 6px 18px rgba(14, 165, 233, .35); }
+.vp-btn:disabled { opacity: .55; cursor: not-allowed; }
 
-.vp-player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 14px; overflow: hidden;
-  border: 1px solid rgba(125, 211, 252, .25); box-shadow: 0 16px 44px rgba(0, 0, 0, .6), 0 0 0 1px rgba(139, 92, 246, .12) inset; }
+.vp-player-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid rgba(125, 211, 252, .25); box-shadow: 0 16px 44px rgba(0, 0, 0, .6), 0 0 0 1px rgba(139, 92, 246, .12) inset; }
 .vp-video, .vp-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: none; background: #000; }
-.vp-loading, .vp-err { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(3, 6, 14, .82); color: #93c5fd; font-size: 13px; z-index: 3; }
-.vp-err { background: rgba(24, 6, 14, .9); color: #fda4af; }
+.vp-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(3, 6, 14, .82); color: #93c5fd; font-size: 13px; z-index: 3; }
+.vp-err { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(24, 6, 14, .9); color: #fda4af; font-size: 13px; z-index: 3; padding: 20px; text-align: center; }
+.vp-err-btns { display: flex; gap: 8px; }
 .vp-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(125, 211, 252, .25); border-top-color: #38bdf8; animation: vp-rot .8s linear infinite; }
 @keyframes vp-rot { to { transform: rotate(360deg); } }
-.vp-now { margin: 10px 2px 6px; font-size: 12.5px; color: #7dd3fc; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.vp-now-src { color: #94a3b8; }
-.vp-qwrap { display: inline-flex; gap: 4px; margin-left: auto; }
+
+.vp-ctl { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 10px 2px 4px; }
+.vp-now { font-size: 12.5px; color: #7dd3fc; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.vp-mini { border: 1px solid rgba(125, 211, 252, .3); background: rgba(125, 211, 252, .08); color: #bae6fd; border-radius: 8px; padding: 3px 8px; cursor: pointer; display: inline-flex; align-items: center; }
+.vp-mini:disabled { opacity: .4; cursor: not-allowed; }
+.vp-auto { font-size: 11.5px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.vp-qwrap { display: inline-flex; gap: 4px; }
 .vp-qchip { border: 1px solid rgba(125, 211, 252, .3); background: rgba(125, 211, 252, .08); color: #bae6fd; font-size: 11px; padding: 2px 8px; border-radius: 999px; cursor: pointer; }
 .vp-qchip.on { background: linear-gradient(120deg, #0ea5e9, #8b5cf6); color: #fff; border-color: transparent; }
-.vp-src { position: absolute; top: 6px; left: 6px; font-size: 10px; color: #e0f2fe; background: rgba(2, 6, 23, .72); border: 1px solid rgba(125, 211, 252, .4); border-radius: 6px; padding: 1px 6px; backdrop-filter: blur(4px); }
 .vp-eps { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 7px; margin-top: 8px; }
-.vp-ep { border: 1px solid rgba(148, 163, 184, .25); background: rgba(255, 255, 255, .04); color: #b6c2d9; font-size: 12px;
-  padding: 7px 4px; border-radius: 9px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; transition: all .16s; }
+.vp-ep { border: 1px solid rgba(148, 163, 184, .25); background: rgba(255, 255, 255, .04); color: #b6c2d9; font-size: 12px; padding: 7px 4px; border-radius: 9px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; transition: all .16s; }
 .vp-ep:hover { border-color: #38bdf8; color: #e0f2fe; }
 .vp-ep.on { background: linear-gradient(120deg, #0ea5e9, #8b5cf6); color: #fff; border-color: transparent; box-shadow: 0 4px 14px rgba(56, 189, 248, .3); }
 
 .vp-fade-enter-active, .vp-fade-leave-active { transition: opacity .22s; }
 .vp-fade-enter-from, .vp-fade-leave-to { opacity: 0; }
-.vp-slide-enter-active { transition: all .28s cubic-bezier(.2, .8, .2, 1); }
-.vp-slide-enter-from { opacity: 0; transform: translateY(22px); }
 
 @media (max-width: 700px) {
   .vp-head { flex-wrap: wrap; gap: 8px; }
-  .vp-brand { width: 100%; }
+  .vp-brand { width: auto; flex: 1; }
   .vp-note { display: none; }
   .vp-hero-in { flex-direction: column; align-items: center; text-align: center; }
-  .vp-hero-poster { width: 96px; }
+  .vp-hero-poster { width: 92px; }
   .vp-actions { justify-content: center; }
-  .vp-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+  .vp-grid { grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 10px; }
+  .vp-card.rail, .vp-mini { width: 96px; }
+  .vp-ctl { flex-direction: column; align-items: flex-start; }
 }
 </style>
