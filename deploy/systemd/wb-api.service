@@ -1,0 +1,62 @@
+[Unit]
+Description=多作物叶片病害诊断 API (FastAPI + ONNX Runtime)
+Documentation=file:///opt/wb-api/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=wbapi
+Group=wbapi
+WorkingDirectory=/opt/wb-api
+EnvironmentFile=/opt/wb-api/.env
+Environment=HOME=/opt/wb-api
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=OMP_NUM_THREADS=2
+Environment=OPENBLAS_NUM_THREADS=2
+
+# 只监听回环，nginx 通过 127.0.0.1:7860 反代
+ExecStart=/opt/wb-api/venv/bin/uvicorn server.main:app \
+    --host 127.0.0.1 --port 7860 \
+    --workers 1 --limit-concurrency 8 --timeout-keep-alive 5
+
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=120
+StartLimitBurst=6
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+# 2GB 内存的小机器：给硬上限，宁可自己被 OOM 杀掉重启，也别把系统拖死
+MemoryHigh=800M
+MemoryMax=1100M
+TasksMax=128
+
+# 权限收紧：进程只读系统，只有 /opt/wb-api 可写
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+ReadWritePaths=/opt/wb-api
+
+# 日志走 journald，方便按服务名筛选
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wb-api
+
+[Install]
+WantedBy=multi-user.target

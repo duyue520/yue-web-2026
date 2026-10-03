@@ -1,0 +1,7 @@
+[Unit]
+Description=wb 看门狗定时器（每 5 分钟）
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+[Install]
+WantedBy=timers.target

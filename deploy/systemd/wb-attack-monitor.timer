@@ -1,0 +1,8 @@
+[Unit]
+Description=每 2 分钟检查攻击态势
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=120
+AccuracySec=10
+[Install]
+WantedBy=timers.target

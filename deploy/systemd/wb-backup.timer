@@ -1,0 +1,8 @@
+[Unit]
+Description=wb 每日备份定时器
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=600
+Persistent=true
+[Install]
+WantedBy=timers.target

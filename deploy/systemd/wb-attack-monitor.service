@@ -1,0 +1,5 @@
+[Unit]
+Description=WB 攻击实时监控
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wb-attack-monitor

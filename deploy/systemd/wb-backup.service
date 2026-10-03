@@ -1,0 +1,5 @@
+[Unit]
+Description=wb 每日备份（数据库+站点+配置）
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wb-backup.sh

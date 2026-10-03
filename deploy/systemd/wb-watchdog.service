@@ -1,0 +1,5 @@
+[Unit]
+Description=wb 站点看门狗
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wb-watchdog.sh

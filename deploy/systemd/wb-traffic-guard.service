@@ -1,0 +1,9 @@
+[Unit]
+Description=WB monthly egress traffic guard
+After=network-online.target
+[Service]
+Type=oneshot
+# CDT 20GB/月 免费额度内公网流量 ¥0；超过 20GB 按 0.8元/GB 计费，熔断保护钱包
+Environment=WB_LIMIT_MB=20480
+Environment=WB_WARN_MB=15360
+ExecStart=/usr/local/sbin/wb-traffic-guard.sh

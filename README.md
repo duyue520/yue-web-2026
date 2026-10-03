@@ -133,3 +133,156 @@ python start.py              # 或：uvicorn server.main:app --host 127.0.0.1 --
 
 站点在缺失这些文件时仍可正常运行（本地歌单为空、动态壁纸回退为静态图）。
 如需完整体验，请自行将自有素材放入对应目录。在线搜歌功能不依赖这些文件。
+
+---
+
+## 🚀 部署与恢复（换服务器也能一键重建）
+
+完整部署手册见 **[deploy/README.md](deploy/README.md)**，配套脚本与配置已全部入库：
+
+| 文件 | 用途 |
+|---|---|
+|  | 全新服务器从零部署手册（依赖/数据库/服务/nginx/HTTPS/验证/常见坑/迁移清单） |
+| 包管理器: dnf
+
+[1;36m== 1/8 安装系统依赖[0m
+Last metadata expiration check: 7:12:12 ago on Sat 03 Oct 2026 04:20:58 AM CST.
+Package python36-3.6.8-38.module+al8+10+4ba10e20.x86_64 is already installed.
+Package gcc-10.2.1-3.9.al8.x86_64 is already installed.
+Package make-1:4.2.1-11.0.1.al8.x86_64 is already installed.
+Package nginx-1:1.24.0-3.0.1.2.al8.1.x86_64 is already installed.
+Package postgresql-server-13.23-3.0.1.al8.x86_64 is already installed.
+Package postgresql-13.23-3.0.1.al8.x86_64 is already installed.
+Package git-2.43.7-1.0.1.al8.x86_64 is already installed.
+Package curl-7.61.1-35.0.2.al8.13.x86_64 is already installed.
+Package fail2ban-1.0.2-3.el8.noarch is already installed.
+Dependencies resolved.
+================================================================================
+ Package            Arch      Version                  Repository          Size
+================================================================================
+Installing:
+ gcc-c++            x86_64    10.2.1-3.9.al8           alinux3-updates     12 M
+ python3-devel      x86_64    3.6.8-78.0.1.1.al8       alinux3-updates     69 k
+Installing dependencies:
+ libstdc++-devel    x86_64    10.2.1-3.9.al8           alinux3-updates    2.2 M
+
+Transaction Summary
+================================================================================
+Install  3 Packages
+
+Total download size: 14 M
+Installed size: 42 M
+Downloading Packages:
+(1/3): python3-devel-3.6.8-78.0.1.1.al8.x86_64. 2.7 MB/s |  69 kB     00:00    
+(2/3): libstdc++-devel-10.2.1-3.9.al8.x86_64.rp  19 MB/s | 2.2 MB     00:00    
+(3/3): gcc-c++-10.2.1-3.9.al8.x86_64.rpm         36 MB/s |  12 MB     00:00    
+--------------------------------------------------------------------------------
+Total                                            43 MB/s |  14 MB     00:00     
+Running transaction check
+Transaction check succeeded.
+Running transaction test
+Transaction test succeeded.
+Running transaction
+  Preparing        :                                                        1/1 
+  Installing       : libstdc++-devel-10.2.1-3.9.al8.x86_64                  1/3 
+  Installing       : gcc-c++-10.2.1-3.9.al8.x86_64                          2/3 
+  Installing       : python3-devel-3.6.8-78.0.1.1.al8.x86_64                3/3 
+  Running scriptlet: python3-devel-3.6.8-78.0.1.1.al8.x86_64                3/3 
+  Verifying        : gcc-c++-10.2.1-3.9.al8.x86_64                          1/3 
+  Verifying        : libstdc++-devel-10.2.1-3.9.al8.x86_64                  2/3 
+  Verifying        : python3-devel-3.6.8-78.0.1.1.al8.x86_64                3/3 
+
+Installed:
+  gcc-c++-10.2.1-3.9.al8.x86_64           libstdc++-devel-10.2.1-3.9.al8.x86_64
+  python3-devel-3.6.8-78.0.1.1.al8.x86_64
+
+Complete!
+
+[1;36m== 2/8 初始化数据库 wb_campus[0m
+ 数据库已存在，跳过建库
+
+[1;36m== 3/8 部署后端到 /opt/wb-api[0m
+
+[1;36m== 4/8 安装 Python 依赖（首次约 2~5 分钟）[0m
+
+[1;36m== 5/8 安装 systemd 服务与定时器[0m
+
+[1;36m== 6/8 配置 nginx[0m
+[1;33m[!] nginx 配置校验失败，请检查 /etc/nginx/conf.d[0m
+
+[1;36m== 7/8 构建并发布前端到 /var/www/site[0m
+[1;33m[!] 未找到前端目录或 npm，跳过（可手工 build 后拷到 /var/www/site）[0m
+
+[1;36m== 8/8 验证[0m
+active
+  wb-api: OK
+{"status":"ok","model_loaded":true}== 资源完整性校验 ==
+  主分块 OK: index-CATHZmVW.js (475658 字节)
+  懒加载分块 OK: AiChat-C9kbY3C4.js
+  懒加载分块 OK: AiGateway-CSVLn6S8.js
+  懒加载分块 OK: ApproveDialog-Csh6_ZPm.js
+  懒加载分块 OK: BlogPage-CbMpAzly.js
+  懒加载分块 OK: chart-edwR_I7k.js
+  懒加载分块 OK: DiseaseMain-G9xW2mzu.js
+  懒加载分块 OK: Guestbook-CpDF97Ct.js
+  懒加载分块 OK: polarchart-BEprCSYN.js
+  懒加载分块 OK: ProfileDialog-CG4u8Z7R.js
+  懒加载分块 OK: three.module-BUAXwejV.js
+  懒加载分块 OK: vendor-B5k_eIJ3.js
+  懒加载分块 OK: vuetify-Cj6MZGMR.js
+VERIFY_OK 资源完整
+
+============================================================
+ 部署完成 ✅
+ 下一步（必须手工）：
+   1) 编辑 /opt/wb-api/.env —— 填 DATABASE_URL(=上面密码)/SECRET_KEY/AI_GW_ADMIN_TOKEN
+   2) systemctl restart wb-api
+   3) 配置 HTTPS：certbot --nginx -d heyiwei.tech -d www.heyiwei.tech
+   4) 注入 AI 上游（豆包 sessionid 或 OpenAI 兼容 Key）→ 见 deploy/README.md 第 10 节
+   5) 数据恢复（如有旧备份）：bash deploy/scripts/restore-all.sh <备份目录>
+============================================================ | 一键安装（幂等，可重复执行）：依赖 → 建库 → venv → systemd → nginx → 前端构建 → 验证 |
+|  | 后端环境变量模板（占位符，无真实密钥） |
+|  | wb-api 服务 + 4 个守护定时器（备份/看门狗/攻击监控/流量熔断） |
+|  | 站点、反代、限流、安全头、gzip 全套配置 |
+|  | 数据库结构（14 张表），新机建库直接导入 |
+| == 备份到 /var/backups/wb/20261003-113330
+ - 数据库 wb_campus
+   96K
+ - .env（含密钥）
+ - 站点文件 /var/www/site
+ - 配置与证书
+ - 源码版本: 2aad24f
+== 完成：/var/backups/wb/20261003-113330
+   恢复： bash deploy/scripts/restore-all.sh /var/backups/wb/20261003-113330 | 全量备份：DB + .env + 站点 + 配置证书 |
+| 用法: deploy/scripts/restore-all.sh <备份目录> [--db-only|--site-only] | 从备份恢复（支持 --db-only / --site-only） |
+| == 资源完整性校验 ==
+  主分块 OK: index-CATHZmVW.js (475658 字节)
+  懒加载分块 OK: AiChat-C9kbY3C4.js
+  懒加载分块 OK: AiGateway-CSVLn6S8.js
+  懒加载分块 OK: ApproveDialog-Csh6_ZPm.js
+  懒加载分块 OK: BlogPage-CbMpAzly.js
+  懒加载分块 OK: chart-edwR_I7k.js
+  懒加载分块 OK: DiseaseMain-G9xW2mzu.js
+  懒加载分块 OK: Guestbook-CpDF97Ct.js
+  懒加载分块 OK: polarchart-BEprCSYN.js
+  懒加载分块 OK: ProfileDialog-CG4u8Z7R.js
+  懒加载分块 OK: three.module-BUAXwejV.js
+  懒加载分块 OK: vendor-B5k_eIJ3.js
+  懒加载分块 OK: vuetify-Cj6MZGMR.js
+VERIFY_OK 资源完整 | 前端资源完整性校验（防白屏） |
+| ==========================================================================
+一、接口层
+========================================================================== | 全站接口 + 静态 + 日志体检 |
+
+**换服务器三步**：
+== 备份到 /var/backups/wb/20261003-113340
+ - 数据库 wb_campus
+   96K
+ - .env（含密钥）
+ - 站点文件 /var/www/site
+ - 配置与证书
+ - 源码版本: 2aad24f
+== 完成：/var/backups/wb/20261003-113340
+   恢复： bash deploy/scripts/restore-all.sh /var/backups/wb/20261003-113340
+
+> ⚠️ 不进仓库的东西（需自己保管）：、数据库里的用户数据、AI 上游凭证（豆包 sessionid）。
